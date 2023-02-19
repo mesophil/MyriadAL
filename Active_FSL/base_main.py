@@ -419,8 +419,11 @@ if __name__ == '__main__':
         labeled_set=[]
         first_selection_labeled_set=[]
 
-        unlabeled_set = list(set(indices).difference(set(labeled_set)))   
+        unlabeled_set = list(set(indices).difference(set(labeled_set)))   # with no labelled set, this is just list(set(indices))
         random_querylist=torch.randperm(NUM_TRAIN) # create a random index list instead of the query list.
+        
+        # this stuff is all predone
+        
         train_loader = DataLoader(data_train, 
                                     batch_size=NUM_CLASSES, # batchsize of the train_loader is the num_classes
                                     sampler=SubsetSequentialSampler(labeled_set), 
@@ -429,34 +432,21 @@ if __name__ == '__main__':
         test_loader  = DataLoader(data_test, 
                                     batch_size=BATCH # config.py ： BATCH = 128
                                     ) 
-        ###### Visualize images in the train_loader ######
-        # for batch_index, data_target in enumerate(train_loader): 
-            
-        #     # print(type(batch_index))
-        #     # print(batch_index)
-        #     # print(type(batch_index))
-        #     # print(batch_index)
-        #     data_1=data_target[0]   #samples
-        #     target_1=data_target[1] # labels
-        #     # print(data_1.shape)
-        #     # print(target_1)
-        #     dir_name="visualize_initial_labeled_set/Trial{}/Initial_labeled_set_2/".format(trial+1) # you can change the dir name.
-        #     if not os.path.isdir(dir_name):
-        #             os.makedirs(dir_name)
-        #     #print('data_1.shape[0]=',data_1.shape[0])  
-        #     num_samples= data_1.shape[0]
-        #     for i in range(num_samples):
-        #         save_image(data_1[i],"visualize_initial_labeled_set/Trial{}/Initial_labeled_set_2/img{}_Class{}.png".format(trial+1,i,target_1[i])) # you can change the dir name.
-            
-        ##################################
+        
+        # dict for dataloaders
 
         dataloaders  = {'train': train_loader, 'test': test_loader}
             
         ####### Load Pretrained FSL Model######################
+        
+        #using resnet 18 for some reason
         resnet18    = resnet.resnet18(num_classes=NUM_CLASSES).cuda()
+        
+        # load the weights from the pretrained model
         state_dict = torch.load('./Pretrain_FSL_Model/model_best_standard.pth.tar') #load weights
         pretrained_dict=state_dict['state_dict']
         model_dict=resnet18.state_dict()
+        
         # 1. do not import the weight of FC layers(classifier),as we need to train our own classifier on the target dataset samples.
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if (k in model_dict and 'fc' not in k)}
         # 2. overwrite entries in the existing state dict
@@ -468,24 +458,26 @@ if __name__ == '__main__':
         print("original model test acc =",acc)
         for i in range(NUM_CLASSES):
             print("Class{}_acc:{}".format(i,acc[i]))
-    
+            
+            
+        ############
+        ############ ASSUME that all of the above works correctly to load the images in and setup the model
+        ############
+        
+        
+        
+        
+        
+        
 
         ################# Active learning cycles################
-        for cycle in range(CYCLES):
+        for cycle in range(CYCLES): # cycles = 15 in config
 
-            criterion      = nn.CrossEntropyLoss(reduction='none')
-            
-            ###### Uncomment this part to finetune whole model in each AL cycle.######
-            # for param in models['backbone'].parameters():
-            #     param.requires_grad = True
-            # models['backbone'] = models['backbone'].cuda()
-            # # for k,v in models['backbone'].named_parameters():
-            # #     print('{}: {}'.format(k, v.requires_grad))
-            # optim_backbone = optim.SGD(models['backbone'].parameters(), lr=LR, 
-            #                         momentum=MOMENTUM, weight_decay=WDECAY)
-            
+            criterion      = nn.CrossEntropyLoss(reduction='none')            
             
             ###### Just finetune classifier in each AL cycle.#####
+            # finetuning = retraining the pretrained layers
+            
             optim_backbone = optim.SGD(models['backbone'].fc.parameters(), lr=LR, 
                                     momentum=MOMENTUM, weight_decay=WDECAY)
             sched_backbone = lr_scheduler.MultiStepLR(optim_backbone, milestones=MILESTONES)
@@ -493,12 +485,17 @@ if __name__ == '__main__':
             schedulers = {'backbone': sched_backbone}
 
             # Training and test
+            # assume that the below training functions are correct
             train(models, criterion, optimizers, schedulers, dataloaders, EPOCH, EPOCHL, vis=None)
-            acc_all,acc = test(models, dataloaders, mode='test')
+            acc_all, acc = test(models, dataloaders, mode='test')
             print('Trial {}/{} || Cycle {}/{} || Label set size {}: Test acc {}'.format(trial+1, TRIALS, cycle+1, CYCLES, len(labeled_set), acc_all))
             for i in range(NUM_CLASSES):
                 print("Class{}_acc:{}".format(i,acc[i]))
     
+            # the training and test portion of the loop is now complete
+            # what follows is the active learning portion
+    
+     
             # Create unlabeled dataloader for the unlabeled unlabeled_set
            
             unlabeled_loader = DataLoader(data_unlabeled, 
@@ -514,23 +511,23 @@ if __name__ == '__main__':
             
             ###### Measure uncertainty of each sample in the unlabeled_set #####
             uncertainty = get_uncertainty(models, unlabeled_loader)
-            # max_uncertainty=torch.max(uncertainty)
-            # print("max uncertainty score =",max_uncertainty)
-            # min_uncertainty=torch.min(uncertainty)
-            # print("min uncertainty score =" ,min_uncertainty)
             
             ###### Index in ascending order #####
             arg = np.argsort(uncertainty)
             
+            
             ##### First round selection is to select K samples with the highest Query Score.#####
             first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][-ADDENDUM:].numpy()) # ADDENDUM=K, select K samples in each active learning cycle.
-
+            
+            
             ### Print the cover ###
             first_selection_K_samples_labels=[]
             for i in first_selection_K_samples:
                 first_selection_K_samples_labels.append(data_train.targets[i])
             first_selection_K_samples_distribution=Counter(first_selection_K_samples_labels)
+            
             selected_p_labels=[]
+            # pseudo labels are pre generated labels (!) from another algorithm (?)
             for sample_index in first_selection_K_samples:
                 selected_p_labels.append(pseudo_labels[sample_index])
             print("First selection indices:",first_selection_K_samples)
@@ -538,59 +535,6 @@ if __name__ == '__main__':
             print("First selection pseuodo labels: ",selected_p_labels)
             print("First selection distribution: ",first_selection_K_samples_distribution)
             
-            
-            ########### For the following settings, we only run the code for the first AL cycle, which means we only finetune the model once.#####
-            
-            ####### setting 0: randomly select  samples. No active learning, No complete set. #########
-            
-            # second_selection_samples=random_querylist[cycle*ADDENDUM:(cycle+1)*ADDENDUM]
-            
-            # print("second_selection_samples_indices:",second_selection_samples)
-            # second_selection_samples_labels=[]
-            # for i in second_selection_samples:
-            #     second_selection_samples_labels.append(data_train.targets[i])
-            # second_selection_samples_distribution=Counter(second_selection_samples_labels)
-            # print("second_selection_samples_true_labels: ",second_selection_samples_labels)
-            # print("second_selection_samples_true_label_distribution: ",second_selection_samples_distribution)
-            
-            ##### Get NUM_SHOTS pseudo complete sets according to the Query Score#########
-            # list0=[]
-            # second_selection_samples=[]
-            # for item in arg:
-            #     pseudo_label=pseudo_labels[item]
-            #     if list0.count(pseudo_label)<NUM_SHOTS:
-            #         list0.append(pseudo_label)
-            #         second_selection_samples.append(item)
-            #     if len(list0)>(NUM_CLASSES*NUM_SHOTS-1):
-            #         break
-            # print("second_selection_samples_indices:",second_selection_samples)
-            # print("second_selection_samples_pseudo_labels:",list0)
-            # second_selection_samples_labels=[]
-            # for i in second_selection_samples:
-            #     second_selection_samples_labels.append(data_train.targets[i])
-            # second_selection_samples_distribution=Counter(second_selection_samples_labels)
-            # print("second_selection_samples_true_labels: ",second_selection_samples_labels)
-            # print("second_selection_samples_true_label_distribution: ",second_selection_samples_distribution)
-            
-            ######Get NUM_SHOTS pseudo complete sets randomly #######
-            # list0=[]
-            # second_selection_samples=[]
-            # random_querylist=torch.randperm(NUM_TRAIN) # create a random index list instead of the query list.
-            # for item in random_querylist:
-            #     pseudo_label=pseudo_labels[item]
-            #     if list0.count(pseudo_label)<NUM_SHOTS:
-            #         list0.append(pseudo_label)
-            #         second_selection_samples.append(item)
-            #     if len(list0)>(NUM_CLASSES*NUM_SHOTS-1):
-            #         break
-            # print("second_selection_samples_indices:",second_selection_samples)
-            # print("second_selection_samples_pseudo_labels:",list0)
-            # second_selection_samples_labels=[]
-            # for i in second_selection_samples:
-            #     second_selection_samples_labels.append(data_train.targets[i])
-            # second_selection_samples_distribution=Counter(second_selection_samples_labels)
-            # print("second_selection_samples_true_labels: ",second_selection_samples_labels)
-            # print("second_selection_samples_true_label_distribution: ",second_selection_samples_distribution)
             
             ##### Get NUM_SHOTS true complete sets according to the query list #########
             list0=[]
@@ -610,63 +554,7 @@ if __name__ == '__main__':
             second_selection_samples_distribution=Counter(second_selection_samples_labels)
             print("second_selection_samples true labels: ",second_selection_samples_labels)
             print("second_selection_samples true label distribution: ",second_selection_samples_distribution)
-            
-            ###### Randomly select NUM_SHOTS true complete sets #########
-            # list0=[]
-            # second_selection_samples=[]
-            # random_querylist=torch.randperm(NUM_TRAIN) # create a random index list instead of the query list.
-            # for item in random_querylist: 
-            #     true_label=data_unlabeled.targets[item]
-            #     if list0.count(true_label)<NUM_SHOTS:
-            #         list0.append(true_label)
-            #         second_selection_samples.append(item)
-            #     if len(list0)>(NUM_CLASSES*NUM_SHOTS-1): # sample a complete 9-way one-shot support set
-            #     #if len(list0)>(NUM_CLASSES-5): # sample a 5-way one-shot support set
-            #         break
-            # print("second_selection_samples_indices:",second_selection_samples)
-            # second_selection_samples_labels=[]
-            # for i in second_selection_samples:
-            #     second_selection_samples_labels.append(data_train.targets[i])
-            # second_selection_samples_distribution=Counter(second_selection_samples_labels)
-            # print("second_selection_samples true labels: ",second_selection_samples_labels)
-            # print("second_selection_samples true label distribution: ",second_selection_samples_distribution)
-            
-            
-            
-            
-            ######## In the following settings, we run multiple AL cycles and finetune the model multiple times. ######
-            
-            ###### Randomly select K sampples from unlabeled set each AL cycle. ############
-            
-            # second_selection_samples=random_querylist[cycle*ADDENDUM:(cycle+1)*ADDENDUM]
-            
-            # print("second_selection_samples_indices:",second_selection_samples)
-            # second_selection_samples_labels=[]
-            # for i in second_selection_samples:
-            #     second_selection_samples_labels.append(data_train.targets[i])
-            # second_selection_samples_distribution=Counter(second_selection_samples_labels)
-            # print("second_selection_samples_true_labels: ",second_selection_samples_labels)
-            # print("second_selection_samples_true_label_distribution: ",second_selection_samples_distribution)
-            
-
-            
-            ######## Get incomplete set: only keep the first sample of each class(pseudo labels)  #########
-            # idxs=[[] for p in range(NUM_CLUSTERS)] # create NUM_CLUSTERS blank lists.
-            # second_selection_samples=[]
-            # D=[]
-            # for i in range(NUM_CLUSTERS):
-            #     for j,x in enumerate(selected_p_labels):
-            #         if x==i:
-            #             idxs[i].append(j)
-            # for p in idxs:
-            #     if p:
-            #         D.append(p[0])
-            # second_selection_samples=[None]*len(D)
-            # for i in range(len(D)) :
-            #     second_selection_samples[i]=first_selection_K_samples[D[i]]
-            
-            ##########################################################################
-               
+                 
             ##### Print statistics #####
             second_selection_samples_labels=[]
             for i in second_selection_samples:
@@ -679,22 +567,6 @@ if __name__ == '__main__':
             print("Second selection true labels: ",second_selection_samples_labels)
             print("Second selection pseuodo labels: ",second_selected_p_labels)
             print("Second selection distribution: ",second_selection_samples_distribution)
-
-            
-            ## plot histogram##
-            # K_labels=np.array(first_selection_K_samples_labels) 
-            # my_x_ticks = np.arange(0, NUM_CLASSES, 1)
-            # plt.xticks(my_x_ticks)
-            # plt.hist(K_labels,bins=NUM_CLASSES, range=(0,NUM_CLASSES-1), rwidth=0.7,align='mid', facecolor="blue", edgecolor="black")
-            # plt.xlabel("Class")
-            # plt.ylabel("Number of Seleced Samples")
-            # plt.title("Current Cycle Sample Distribution")
-            # plt.savefig('/home/jingyi/ACFSL/Histograms_results/cycle{}'.format(cycle+1))
-            #print the labels of the labeled samples 
-            #print("Labeled set sample_labels: ",labeled_set_labels)
-            #print the statistcs of the labeled samples 4            
-            #print("Current cycle selected sample distribution: ",first_selection_K_samples_distribution)
-            
             
             
             ########## Update the labeled dataset and the unlabeled dataset, respectively #####
@@ -733,29 +605,13 @@ if __name__ == '__main__':
                                             sampler=SubsetSequentialSampler(second_selection_samples), 
                                             pin_memory=True)
             
-            ###### Save images in the first round selection #####
-            # dir_name="resize84_visualize_labeled_set/Trial{}/{}_cluster/Cycle{}/first_selection/".format(trial+1,NUM_CLUSTERS,cycle+1)
-            # if not os.path.isdir(dir_name):
-            #         os.makedirs(dir_name)
-            # first_selection_data_all=torch.Tensor()
-            # first_selection_target_all=torch.Tensor()
-
-            # for batch_index, data_target in enumerate(first_selection_samples_loader): 
             
-
-            #     first_selection_data=data_target[0]
-            #     first_selection_target=data_target[1]
-            #     first_selection_data_all=torch.cat((first_selection_data_all,first_selection_data),0)
-            #     first_selection_target_all=torch.cat((first_selection_target_all,first_selection_target),0)
-
-            # for i in range(first_selection_data_all.shape[0]):
-            #         save_image(first_selection_data_all[i],"resize84_visualize_labeled_set/Trial{}/{}_cluster/Cycle{}/first_selection/img{}_Class{}.png".format(trial+1,NUM_CLUSTERS,cycle+1,i+1,int(first_selection_target_all[i])))
-            ###########################################################   
             
             ###### Save images in the second round selection #####
             dir_name="resize84_visualize_labeled_set/Trial{}/{}_cluster/Cycle{}/second_selection/".format(trial+1,NUM_CLUSTERS,cycle+1)
             if not os.path.isdir(dir_name):
                     os.makedirs(dir_name)
+                     
             second_selection_data_all=torch.Tensor()
             second_selection_target_all=torch.Tensor()
 
@@ -770,18 +626,6 @@ if __name__ == '__main__':
                     save_image(second_selection_data_all[i],"resize84_visualize_labeled_set/Trial{}/{}_cluster/Cycle{}/second_selection/img{}_Class{}.png".format(trial+1,NUM_CLUSTERS,cycle+1,i+1,int(second_selection_target_all[i])))
             ########################################################### 
             
-            ##### PLOT TSNE GRAPH  #####           
-            #targets_un, outputs_un = gen_features(initial_unlabeled_loader)
-            
-            #### This will print TSNE graph of every cycle first selection K samples with the current AL cycle model.
-            #tsne_plot('/home/jingyi/ACFSL/TSNE_results/current_cycle_model/first_selection/features_cycle{}.png'.format(cycle+1),  first_selection_K_samples, rest_labeled_samples,targets_un, outputs_un)
-    
-            #### This will print first selection TSNE graph of every cycle seleced K samples with the ultimate cycle AL model.            
-            #tsne_plot_everycycle_selection('/home/jingyi/ACFSL/TSNE_results/ultimate_model/first_selection/', labeled_set,targets_un, outputs_un)
-            
-            #### This will print the second selection TSNE graph of every cycle with the ultimate cycle AL model.            
-            #tsne_plot_second_selection('/home/jingyi/ACFSL/TSNE_results/ultimate_model/second_selection/',second_selection_samples,first_selection_labeled_set,previous_cycle_selected_samples ,labeled_set,targets_un, outputs_un)
-
         # Save a checkpoint
         # torch.save({
         #             'trial': trial + 1,

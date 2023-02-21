@@ -4,7 +4,7 @@
 NUM_TRAIN = 10000 # N
 BATCH     = 128 # B #This would be the test_loader batchsize
 ADDENDUM  = 9 # K: each AL cycle selects K samples
-CYCLES = 25
+CYCLES = 11
 NUM_SHOTS=10
 NUM_CLASSES= 9  #train loader batchsize would be smaller= NUM_CLASSES
 NUM_CLUSTERS=9

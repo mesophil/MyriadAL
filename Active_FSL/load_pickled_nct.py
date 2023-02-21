@@ -79,14 +79,14 @@ class NCT_PICKLE(VisionDataset):
 
             file_path = os.path.join(self.root, self.base_folder, str(file_name))
             with open(file_path, 'rb') as f:
-                entry = pickle.load(f, encoding='latin1') #在这儿 upickle
+                entry = pickle.load(f, encoding='latin1') # right here upickle
                 self.data.append(entry['data'])
                 if 'labels' in entry:
                     self.targets.extend(entry['labels'])
                 else:
                     self.targets.extend(entry['fine_labels'])
 
-        ####这里 reshape(-1,3,32,32) 应该要改成(-1, 3, 224, 224)
+        ####here reshape(-1,3,32,32) it should change to (-1, 3, 224, 224)
         self.data = np.vstack(self.data).reshape(-1, 3, 224, 224)
         self.data = self.data.transpose((0, 2, 3, 1))  # convert to HWC
 

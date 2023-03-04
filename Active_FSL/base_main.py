@@ -90,7 +90,7 @@ data_train = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Ac
 iters = 0
 
 ###########load pseudo labels###########
-pseudo_labels=torch.load("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Generate_Pseudo_Labels/pseudo_labels_checkpoint0199.pth")
+pseudo_labels=torch.load("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Generate_Pseudo_Labels/breakhis_pseudo_labels_checkpoint0199.pth")
 pseudo_labels=pseudo_labels.cpu().detach().numpy()
 
 ####### Get TSNE graphs ###################
@@ -438,38 +438,35 @@ if __name__ == '__main__':
             print("Class{}_acc:{}".format(i,acc[i]))
             
             
-        ############
-        ############ ASSUME that all of the above works correctly to load the images in and setup the model
-        ############
-        
 
         ################# Active learning cycles################
         for cycle in range(CYCLES): # cycles in config
 
             criterion      = nn.CrossEntropyLoss(reduction='none')            
             
-            ###### Just finetune classifier in each AL cycle.#####
-            # finetuning = retraining the pretrained layers
-            
+            # stochastic gradient descent
             #optim_backbone = optim.SGD(models['backbone'].fc.parameters(), lr=LR, momentum=MOMENTUM, weight_decay=WDECAY)
             
-            # trying adam optimizer
+            # adam optimizer
             optim_backbone = optim.Adam(models['backbone'].fc.parameters(), lr=LR, weight_decay=WDECAY)
             
             sched_backbone = lr_scheduler.MultiStepLR(optim_backbone, milestones=MILESTONES)
             optimizers = {'backbone': optim_backbone}
             schedulers = {'backbone': sched_backbone}
             
-            
+            # formatting for each cycle
             print('--------------------------------Cycle %d/%d--------------------------------' % (cycle+1, CYCLES))
             
-            # Training and test
-            # assume that the below training functions are correct
+            # Training
             train(models, criterion, optimizers, schedulers, dataloaders, EPOCH, EPOCHL, vis=None)
+            
+            # testing
             acc_all, acc = test(models, dataloaders, mode='test')
+            
+            # results of the testing
             print('Trial %d/%d || Cycle %d/%d || Label set size %d: Test acc %.3f%%' % (trial+1, TRIALS, cycle+1, CYCLES, len(labeled_set), acc_all))
             for i in range(NUM_CLASSES):
-                print("Class{}_acc:{}".format(i,acc[i]))
+                print("Class %d Acc: %.3f" % (i,acc[i]))
             
             # for plotting
             y.append(acc_all)
@@ -502,60 +499,38 @@ if __name__ == '__main__':
             
             ###### Measure uncertainty of each sample in the unlabeled_set #####
             
-            #uncertainty = torch.nn.functional.normalize(get_uncertainty_margin(models, unlabeled_loader), dim=0) + torch.nn.functional.normalize(get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set), dim=0)
+            """ margin only """
+            #uncertainty = get_uncertainty_margin(models, unlabeled_loader)
             
-            uncertainty = get_uncertainty_margin(models, unlabeled_loader)
             
-            # this one has the best results so far (marginal + entropy nonnormalized)
+            """ entropy only """
+            uncertainty = get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set) #for entropy
+            
+            
+            """ margin and entropy unnormalized """
             #uncertainty = get_uncertainty_margin(models, unlabeled_loader) + get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set)
             
-            #uncertainty = get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set) #for entropy
             
-            ###### Index in ascending order #####
-            #arg = np.argsort(uncertainty)
-            
-            # pseudo complete sets are basically feature based sampling
+            """ normalized margin and entropy """
+            #uncertainty = torch.nn.functional.normalize(get_uncertainty_margin(models, unlabeled_loader), dim=0) + torch.nn.functional.normalize(get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set), dim=0)
             
             arg = np.argsort(uncertainty)
             
-            # randomizer
+            # optional randomizer
             #arg = arg[torch.randperm(len(arg))]
             
             
-            
-            
-            ##### First round selection is to select K samples with the highest Query Score.#####
+            """ First round selection - individually selected samples """
             
             # ADDENDUM most informative samples method
-            first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][-ADDENDUM:].numpy()) # ADDENDUM=K, select K samples in each active learning cycle.
+            # first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][-ADDENDUM:].numpy()) # ADDENDUM=K, select K samples in each active learning cycle.
             
             # even selection method
-            #step = len(unlabeled_set)//ADDENDUM + 1
-            #first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][::step].numpy())
-            
-            ### Print the cover ###
-            first_selection_K_samples_labels=[]
-            for i in first_selection_K_samples:
-                first_selection_K_samples_labels.append(data_train.targets[i])
-            first_selection_K_samples_distribution=Counter(first_selection_K_samples_labels)
-            
-            selected_p_labels=[]
-            # pseudo labels are pre generated labels (!) from another algorithm (?)
-            for sample_index in first_selection_K_samples:
-                selected_p_labels.append(pseudo_labels[sample_index])
-            #print("First selection indices:",first_selection_K_samples)
-            #print("First selection pseudo labels:  ",selected_p_labels)
-            #print("First selection true labels:    ",first_selection_K_samples_labels)
-            #print("First selection distribution:   ",first_selection_K_samples_distribution)
+            step = len(unlabeled_set)//ADDENDUM + 1
+            first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][::step].numpy())
             
             
-            
-            ### begin second selection
-            
-            
-            ##### Get NUM_SHOTS true complete sets according to the query list #########
-            
-            # first 9 pseudocomplete samples
+            """ Second round selection - pseudocomplete sets """
             
             list0=[]
             second_selection_samples=[]
@@ -568,78 +543,44 @@ if __name__ == '__main__':
                     second_selection_samples.append(item)
                 if len(list0)>(NUM_CLASSES*NUM_SHOTS-1): # sample a complete N-way one-shot support set with pseudolabels
                     break
+                    
             
-            
-            ## evenly selected
-            
-            
-            #second_selection_samples=[]
-            #splits = (np.array_split(arg, ADDENDUM))
-            #list0 = []
             
             """
-            for phase in splits:
-                for item in torch.flip(phase,[0]):             # arg is the query list                         
-                    
-                    p_label = pseudo_labels[item]
-                    
-                    if list0.count(p_label) == 0 or cycle > 6:
-                        second_selection_samples.append(item)
-                        list0.append(p_label)
-                        break
+            # evenly selected pseudo complete sets
+            
+            splits = np.array_split(arg, ADDENDUM)
+            while (len(list0) < 9):
+                for phase in reversed(splits):
+                    for item in torch.flip(phase,[0]):             # arg is the query list                         
+                        p_label = pseudo_labels[item]
+                        if list0.count(p_label) == 0:
+                            second_selection_samples.append(item)
+                            list0.append(p_label)
+                            break
             """
             
             
-            ## alt second selection method
+            """ Print Statistics """
             
-            ## spamming one class never works to increase accuracy
+            ### First selection statistics ###
+            first_selection_K_samples_labels=[]
+            for i in first_selection_K_samples:
+                first_selection_K_samples_labels.append(data_train.targets[i])
+            first_selection_K_samples_distribution=Counter(first_selection_K_samples_labels)
             
-            """
-            if acc_all < 0:
-                print("Selecting via even sampling")
-                
-                while (len(list0) < 9):
-                    for phase in reversed(splits):
-                        for item in torch.flip(phase,[0]):             # arg is the query list                         
-
-                            p_label = pseudo_labels[item]
-
-                            if list0.count(p_label) == 0:
-                                second_selection_samples.append(item)
-                                list0.append(p_label)
-                                break
-            else:
-                print("Selecting via normal sampling")
-                for item in torch.flip(arg,[0]):
-                    
-                    true_label = pseudo_labels[item]
-                    
-                    if list0.count(true_label)<NUM_SHOTS:
-                        list0.append(true_label)
-                        second_selection_samples.append(item)
-                        
-                    if len(list0)>(NUM_CLASSES*NUM_SHOTS-1): # sample a complete 9-way one-shot support set
-                        break
-            """
-                    
-            #print("second_selection_samples_indices:",second_selection_samples)
-            second_selection_samples_labels=[]
-            
-            for i in second_selection_samples:
-                second_selection_samples_labels.append(data_train.targets[i])
-            second_selection_samples_distribution=Counter(second_selection_samples_labels)
+            selected_p_labels=[]
+            # pseudo labels are pre generated labels from another algorithm (basically feature mapping)
+            for sample_index in first_selection_K_samples:
+                selected_p_labels.append(pseudo_labels[sample_index])
+            #print("First selection indices:",first_selection_K_samples)
+            print("First selection pseudo labels:  ",selected_p_labels)
+            print("First selection true labels:    ",first_selection_K_samples_labels)
+            print("First selection distribution:   ",first_selection_K_samples_distribution)
             
             
-            ### end second selection
+            ### Second selection statistics ###
             
-            
-            #print("second_selection_samples true labels:             ",second_selection_samples_labels)
-            #print("second_selection_samples true label distribution: ",second_selection_samples_distribution)
-                 
-                
-                
-                
-            ##### Print statistics #####
             second_selection_samples_labels=[]
             second_selection_samples_p_labels = []
             for i in second_selection_samples:
@@ -650,7 +591,6 @@ if __name__ == '__main__':
             second_selected_p_labels=[]
             for sample_index in second_selection_samples:
                 second_selected_p_labels.append(pseudo_labels[sample_index])
-            #print("Second selection indices:",second_selection_samples)
             print("Second selection true labels:    ",second_selection_samples_labels)
             print("Second selection pseudo labels:  ",second_selected_p_labels)
             print("Query pseudo label distribution: ", second_selection_samples_p_distribution)
@@ -658,24 +598,13 @@ if __name__ == '__main__':
             
             
             ########## Update the labeled dataset and the unlabeled dataset, respectively #####
-            ##### If there's only one-round selection #####         
-            ##first_selection_labeled_set += first_selection_K_samples  ### for TSNE PLOT
             
-            # experimental dual round selection
-            #labeled_set += first_selection_K_samples 
+            # use one of the below depending on the selection
             
-            ##### If there's a second round selection#####          
-            labeled_set += second_selection_samples
-            
-            ##print labeled samples indexes
-            ##print("Labeled set sample_indexes: ",labeled_set)
-            ###print statistics###
-            
-            
-            
+            labeled_set += first_selection_K_samples              
+            #labeled_set += second_selection_samples
             
             # gathering the true labels for the queried data
-            
             labeled_set_labels=[]
             for i in labeled_set:
                 labeled_set_labels.append(data_train.targets[i])
@@ -689,7 +618,6 @@ if __name__ == '__main__':
             
             ###### Update the unlabeled set #######
             unlabeled_set = list(set(indices).difference(set(labeled_set))) 
-            #random_querylist=list(set(random_querylist).difference(set(labeled_set))) 
             
             ###### Update the train_loader #######
             dataloaders['train'] = DataLoader(data_train,
@@ -707,34 +635,6 @@ if __name__ == '__main__':
                                             sampler=SubsetSequentialSampler(second_selection_samples), 
                                             pin_memory=True)
             
-            
-            
-            ###### Save images in the second round selection #####
-            dir_name="resize84_visualize_labeled_set/Trial{}/{}_cluster/Cycle{}/second_selection/".format(trial+1,NUM_CLUSTERS,cycle+1)
-            if not os.path.isdir(dir_name):
-                    os.makedirs(dir_name)
-                     
-            second_selection_data_all=torch.Tensor()
-            second_selection_target_all=torch.Tensor()
-
-            for batch_index, data_target in enumerate(second_selection_samples_loader): 
-        
-                second_selection_data=data_target[0]
-                second_selection_target=data_target[1]
-                second_selection_data_all=torch.cat((second_selection_data_all,second_selection_data),0)
-                second_selection_target_all=torch.cat((second_selection_target_all,second_selection_target),0)
-                
-            #for i in range(second_selection_data_all.shape[0]):
-            #        save_image(second_selection_data_all[i],"resize84_visualize_labeled_set/Trial{}/{}_cluster/Cycle{}/second_selection/img{}_Class{}.png".format(trial+1,NUM_CLUSTERS,cycle+1,i+1,int(second_selection_target_all[i])))
-            ########################################################### 
-            
-        # Save a checkpoint
-        # torch.save({
-        #             'trial': trial + 1,
-        #             'state_dict_backbone': models['backbone'].state_dict(),
-        #             #'state_dict_module': models['module'].state_dict()
-        #         },
-        #         './nct/train/weights/active_resnet18_nct_trial{}.pth'.format(trial))
     
     print("1 cycle = %.3f, 7 cycles = %.3f, 11 cycles = %.3f, 15 cycles = %.3f" % (beginacc, midacc, endacc, finalacc))
     plt.figure()

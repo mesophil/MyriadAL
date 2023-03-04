@@ -24,10 +24,10 @@ TRIALS = 1
 MARGIN = 1.0 # xi
 WEIGHT = 1.0 # lambda
 EPOCH = 200
-LR = 0.00015 # best success with 1e-4 so far
+LR = 0.0001 # best success with 1e-4 so far
 MILESTONES = [160]
 EPOCHL = 120 # After 120 epochs, stop the gradient from the loss prediction module propagated to the target model
 MOMENTUM = 0.9
 WDECAY = 5e-4
 
-RANDOM_SEED = 101
+RANDOM_SEED = 100

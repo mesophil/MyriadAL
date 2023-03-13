@@ -11,6 +11,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.data.sampler import SubsetRandomSampler
+import baal
 
 # Torchvison
 import torchvision.transforms as T
@@ -146,6 +147,33 @@ def test(models, dataloaders, mode='val'):
     return acc_all, acc
 
 
+def probs(models, dataloaders, mode='val'):
+    """
+    models = {'backbone': resnet18}
+    dataloaders  = {'train': train_loader, 'test': test_loader}
+    
+    """
+    assert mode == 'val' or mode == 'test'
+    
+    # switch to evaluation mode
+    models['backbone'].eval() 
+    
+    prob = []
+    
+    with torch.no_grad(): #speed up computation when no backprop is necessary
+        for (inputs, labels) in dataloaders[mode]:
+            inputs = inputs.cuda()
+            labels = labels.cuda()
+            
+            if ( len(labels) == BATCH ):
+                logits, _ = models['backbone'](inputs)
+                sc = torch.nn.functional.softmax(logits, dim=1)
+                prob.append(sc)
+    prob = torch.stack(prob)
+    return prob
+
+
+
 
 ############## Informativeness calculation methods ##############
 
@@ -168,13 +196,12 @@ def get_uncertainty_entropy(models, unlabeled_loader,unlabeled_set):
 def get_uncertainty_margin(models, unlabeled_loader):
     models['backbone'].eval()
     uncertainty_score=[]    
+    
     with torch.no_grad():
-        i=0
         for (inputs, labels) in unlabeled_loader:
             inputs = inputs.cuda()
             labels = labels.cuda()
             scores, _ = models['backbone'](inputs)
-            i=i+1
             probs = torch.nn.functional.softmax(scores, dim=1)           
             for x in probs:
                 xb=x.sort(0,True)[0]
@@ -184,21 +211,27 @@ def get_uncertainty_margin(models, unlabeled_loader):
     return uncertainty_score
 
 
-
-
-
-
+###### Query Strategy: Least Confidence ######
+def get_uncertainty_LC(models, unlabeled_loader):
+    models['backbone'].eval()
+    uncertainty_score=[]
+    with torch.no_grad():
+        for (inputs, labels) in unlabeled_loader:
+            inputs = inputs.cuda()
+            labels = labels.cuda()
+            scores, _ = models['backbone'](inputs)        
+            probs = torch.nn.functional.softmax(scores, dim=1)           
+            for x in probs:
+                xb=x.sort(0,True)[0]               
+                uncertainty_score.append(1.0/xb[0])                
+        uncertainty_score=torch.Tensor(uncertainty_score)
+    return uncertainty_score
 
 ################### Main ###################
 if __name__ == '__main__':
     
     y = [];
     x = [i*9 for i in range(CYCLES)]
-    
-    beginacc=0
-    midacc = 0
-    endacc = 0
-    finalacc = 0
     
     for trial in range(TRIALS): ## TRIALS=1
         indices = list(range(NUM_TRAIN)) # in config.py, we defined NUM_TRAIN = 10000
@@ -253,7 +286,7 @@ if __name__ == '__main__':
         ##### Active learning cycles #####
         for cycle in range(CYCLES): # cycles in config
 
-            criterion      = nn.CrossEntropyLoss(reduction='none')            
+            criterion      = nn.CrossEntropyLoss(reduction='none')
             
             # stochastic gradient descent
             #optim_backbone = optim.SGD(models['backbone'].fc.parameters(), lr=LR, momentum=MOMENTUM, weight_decay=WDECAY)
@@ -281,15 +314,6 @@ if __name__ == '__main__':
             
             # for plotting
             y.append(acc_all)
-            
-            if cycle == 1:
-                beginacc = acc_all
-            elif cycle == 6:
-                midacc = acc_all
-            elif cycle == 10:
-                endacc = acc_all
-            elif cycle == 14:
-                finalacc = acc_all
             
             # the training and test portion of the loop is now complete
             # what follows is the active learning portion
@@ -325,6 +349,14 @@ if __name__ == '__main__':
             """ normalized margin and entropy """
             #uncertainty = torch.nn.functional.normalize(get_uncertainty_margin(models, unlabeled_loader), dim=0) + torch.nn.functional.normalize(get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set), dim=0)
             
+            """ Test """
+            #probabilities = probs(models, dataloaders, mode='test')
+            #uncertainty = get_uncertainty_LC(models, unlabeled_loader)
+            
+            
+            
+            
+            """ Arguments """
             arg = np.argsort(uncertainty)
             
             # optional randomizer
@@ -334,7 +366,7 @@ if __name__ == '__main__':
             ##### First round selection - individually selected samples #####
             
             # ADDENDUM most informative samples method
-            # first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][-ADDENDUM:].numpy()) # ADDENDUM=K, select K samples in each active learning cycle.
+            #first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][-ADDENDUM:].numpy()) # ADDENDUM=K, select K samples in each active learning cycle.
             
             # even selection method
             step = len(unlabeled_set)//ADDENDUM + 1
@@ -343,29 +375,34 @@ if __name__ == '__main__':
             
             ##### Second round selection - pseudocomplete sets #####
             
+            
+            """ Regular pseudocomplete sets"""
+            
             list0=[]
             second_selection_samples=[]
             
             """
             for item in torch.flip(arg,[0]): # arg is the query list (indices)
-                 #true_label=data_unlabeled.targets[item] # target is the true label
-                true_label = pseudo_labels[item]
+                true_label=data_unlabeled.targets[item] # target is the true label
+                #true_label = pseudo_labels[item]
                 if list0.count(true_label)<NUM_SHOTS:
                     list0.append(true_label)
                     second_selection_samples.append(item)
                 if len(list0)>(NUM_CLASSES*NUM_SHOTS-1): # sample a complete N-way one-shot support set with pseudolabels
                     break
-            """     
-            
+            """  
+
             
             
             """ evenly selected pseudo complete sets """
+            
             
             splits = np.array_split(arg, ADDENDUM)
             while (len(list0) < NUM_CLASSES):
                 for phase in reversed(splits):
                     for item in torch.flip(phase,[0]):             # arg is the query list                         
-                        p_label = pseudo_labels[item]
+                        #p_label = pseudo_labels[item]
+                        p_label = data_unlabeled.targets[item]     # using true labels
                         if list0.count(p_label) == 0:
                             second_selection_samples.append(item)
                             list0.append(p_label)
@@ -451,10 +488,14 @@ if __name__ == '__main__':
     
     ##### Relevant data for analysis #####
     
-    print("1 cycle = %.3f, 7 cycles = %.3f, 11 cycles = %.3f, 15 cycles = %.3f" % (beginacc, midacc, endacc, finalacc))
+    print("1 cycle = %.3f, 7 cycles = %.3f, 11 cycles = %.3f, 15 cycles = %.3f" % (y[0], y[6], y[10], y[14]))
     plt.figure()
     plt.scatter(x, y)
     plt.xlabel("Labelled Examples")
     plt.ylabel("Test Accuracy")
     plt.title("Adam Optimizer, LR = {}, Seed {}".format(LR, r_seed))
     plt.savefig('img/acc_graph.png')
+    
+    np.set_printoptions(precision=3)
+    print(np.array(y))
+    np.savetxt('acc.txt', y)

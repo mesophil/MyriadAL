@@ -19,6 +19,7 @@ import torchvision.models as models
 from torchvision.datasets import CIFAR100, CIFAR10
 from nct import NCT
 from load_pickled_nct import NCT_PICKLE
+from LC25000_pickle import LC25000_PICKLE
 from load_pickled_breakhis import BREAKHIS_PICKLE
 from torchvision.utils import save_image
 
@@ -71,13 +72,15 @@ test_transform = T.Compose([
 
 
 ############## Load pickled breakhis dataset ##############
-data_test  = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=False,  transform=test_transform)
-data_unlabeled   = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=test_transform)
-data_train = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=train_transform)
+# data_test  = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=False,  transform=test_transform)
+# data_unlabeled   = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=test_transform)
+# data_train = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=train_transform)
 
 
-# Train Utils
-iters = 0
+############## load pickled LC25000 dataset ##############
+data_test  = LC25000_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/LC25000_pickle", train=False,  transform=test_transform)
+data_unlabeled   = LC25000_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/LC25000_pickle", train=True,  transform=test_transform)
+data_train = LC25000_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/LC25000_pickle", train=True,  transform=train_transform)
 
 ############## load pseudo labels ##############
 pseudo_labels=torch.load("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Generate_Pseudo_Labels/breakhis_pseudo_labels_checkpoint0199.pth")
@@ -87,31 +90,34 @@ pseudo_labels=pseudo_labels.cpu().detach().numpy()
 ################### Functions ###################
 
 ############## Training ##############
-def train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss, vis=None, plot_data=None):
+
+# add parameter for the double train
+# in loop do something like if PARAM == 2 or i % 2 == PARAM - use 2 for full set, 1 for first subset, 0 for second subset
+def train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss, sub=2):
     
     models['backbone'].train()
-    global iters
-
+    i = 0
+    # was dataloaders['train']
     for data in tqdm(dataloaders['train'], leave=False, total=len(dataloaders['train'])):
-        inputs = data[0].cuda()
-        labels = data[1].cuda()
-        iters += 1
-
-        optimizers['backbone'].zero_grad()
-        scores, features = models['backbone'](inputs)
-        target_loss = criterion(scores, labels)
-        m_backbone_loss = torch.sum(target_loss) / target_loss.size(0) 
-        loss=m_backbone_loss
-        loss.backward()
-        optimizers['backbone'].step()
+        if i % 2 == sub or sub == 2:
+            inputs = data[0].cuda()
+            labels = data[1].cuda()
+            optimizers['backbone'].zero_grad()
+            scores, features = models['backbone'](inputs)
+            target_loss = criterion(scores, labels)
+            m_backbone_loss = torch.sum(target_loss) / target_loss.size(0) 
+            loss=m_backbone_loss
+            loss.backward()
+            optimizers['backbone'].step()
+        i = i + 1
+            
         
-def train(models, criterion, optimizers, schedulers, dataloaders, num_epochs, epoch_loss, vis=None):
+def train(models, criterion, optimizers, schedulers, dataloaders, num_epochs, epoch_loss, sub=2):
 
     print('>> Training...')
-    best_acc = 0.
     for epoch in range(num_epochs):
         #schedulers['backbone'].step()
-        train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss, vis=None)
+        train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss, sub)
         schedulers['backbone'].step()
     print('>> Finished Training.')
 
@@ -126,7 +132,7 @@ def test(models, dataloaders, mode='val'):
     getacc1= [0 for c in list_of_classes]
     getacc2= [0 for c in list_of_classes]
     with torch.no_grad():
-        for (inputs, labels) in dataloaders[mode]:
+        for (inputs, labels, filenames) in dataloaders[mode]:
             inputs = inputs.cuda()
             labels = labels.cuda()
             scores, _ = models['backbone'](inputs)
@@ -161,14 +167,12 @@ def probs(models, dataloaders, mode='val'):
     prob = []
     
     with torch.no_grad(): #speed up computation when no backprop is necessary
-        for (inputs, labels) in dataloaders[mode]:
+        for (inputs, labels, filenames) in dataloaders[mode]:
             inputs = inputs.cuda()
             labels = labels.cuda()
-            
-            if ( len(labels) == BATCH ):
-                logits, _ = models['backbone'](inputs)
-                sc = torch.nn.functional.softmax(logits, dim=1)
-                prob.append(sc)
+            logits, _ = models['backbone'](inputs)
+            sc = torch.nn.functional.softmax(logits, dim=1)
+            prob.append(sc)
     prob = torch.stack(prob)
     return prob
 
@@ -182,7 +186,7 @@ def get_uncertainty_entropy(models, unlabeled_loader,unlabeled_set):
     models['backbone'].eval()
     entropylist=[]
     with torch.no_grad():
-        for (inputs, labels) in unlabeled_loader:
+        for (inputs, labels, filenames) in unlabeled_loader:
             inputs = inputs.cuda()
             labels = labels.cuda()
             scores, _ = models['backbone'](inputs)
@@ -198,7 +202,7 @@ def get_uncertainty_margin(models, unlabeled_loader):
     uncertainty_score=[]    
     
     with torch.no_grad():
-        for (inputs, labels) in unlabeled_loader:
+        for (inputs, labels, filenames) in unlabeled_loader:
             inputs = inputs.cuda()
             labels = labels.cuda()
             scores, _ = models['backbone'](inputs)
@@ -232,6 +236,7 @@ if __name__ == '__main__':
     
     y = [];
     x = [i*9 for i in range(CYCLES)]
+    counts = np.zeros((NUM_CLASSES, NUM_CLASSES))
     
     for trial in range(TRIALS): ## TRIALS=1
         indices = list(range(NUM_TRAIN)) # in config.py, we defined NUM_TRAIN = 10000
@@ -277,7 +282,7 @@ if __name__ == '__main__':
         #Before finetuning the classifier, first we test it on the test set to get the original test accuracy.
         acc_all,acc = test(models, dataloaders, mode='test')
         
-        print("original model test acc =",acc)
+        print("original model test acc =",acc_all)
         for i in range(NUM_CLASSES):
             print("Class{}_acc:{}".format(i,acc[i]))
             
@@ -302,7 +307,7 @@ if __name__ == '__main__':
             print('--------------------------------Cycle %d/%d--------------------------------' % (cycle+1, CYCLES))
             
             # Training
-            train(models, criterion, optimizers, schedulers, dataloaders, EPOCH, EPOCHL, vis=None)
+            train(models, criterion, optimizers, schedulers, dataloaders, EPOCH, EPOCHL)
             
             # testing
             acc_all, acc = test(models, dataloaders, mode='test')
@@ -359,14 +364,14 @@ if __name__ == '__main__':
             """ Arguments """
             arg = np.argsort(uncertainty)
             
-            # optional randomizer
-            #arg = arg[torch.randperm(len(arg))]
+            # optional randomizer for benchmarking
+            # arg = arg[torch.randperm(len(arg))]
             
             
             ##### First round selection - individually selected samples #####
             
             # ADDENDUM most informative samples method
-            #first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][-ADDENDUM:].numpy()) # ADDENDUM=K, select K samples in each active learning cycle.
+            # first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][-ADDENDUM:].numpy()) # ADDENDUM=K, select K samples in each active learning cycle.
             
             # even selection method
             step = len(unlabeled_set)//ADDENDUM + 1
@@ -375,11 +380,10 @@ if __name__ == '__main__':
             
             ##### Second round selection - pseudocomplete sets #####
             
-            
-            """ Regular pseudocomplete sets"""
-            
             list0=[]
             second_selection_samples=[]
+            
+            """ Regular pseudocomplete sets"""
             
             """
             for item in torch.flip(arg,[0]): # arg is the query list (indices)
@@ -390,24 +394,28 @@ if __name__ == '__main__':
                     second_selection_samples.append(item)
                 if len(list0)>(NUM_CLASSES*NUM_SHOTS-1): # sample a complete N-way one-shot support set with pseudolabels
                     break
-            """  
+            """
 
             
             
             """ evenly selected pseudo complete sets """
             
-            
+            """
             splits = np.array_split(arg, ADDENDUM)
-            while (len(list0) < NUM_CLASSES):
-                for phase in reversed(splits):
+            i = 0
+            while (len(list0) < NUM_CLASSES and i < 10):
+                for splitnum, phase in enumerate(reversed(splits)):
                     for item in torch.flip(phase,[0]):             # arg is the query list                         
-                        #p_label = pseudo_labels[item]
-                        p_label = data_unlabeled.targets[item]     # using true labels
-                        if list0.count(p_label) == 0:
+                        p_label = pseudo_labels[item]               # using pseudo labels
+                        #p_label = data_unlabeled.targets[item]     # using true labels
+                        #if list0.count(p_label) == 0 and (counts[p_label, splitnum] == 0 or np.all(counts):
+                        if list0.count(p_label) == 0 and splitnum < 6:
                             second_selection_samples.append(item)
                             list0.append(p_label)
+                            counts[p_label, splitnum] += 1
                             break
-            
+                i += 1
+            """    
             
             
             """ Print Statistics """
@@ -420,38 +428,40 @@ if __name__ == '__main__':
             
             selected_p_labels=[]
             # pseudo labels are pre generated labels from another algorithm (basically feature mapping)
-            for sample_index in first_selection_K_samples:
-                selected_p_labels.append(pseudo_labels[sample_index])
+            #for sample_index in first_selection_K_samples:
+            #    selected_p_labels.append(pseudo_labels[sample_index])
             #print("First selection indices:",first_selection_K_samples)
-            print("First selection pseudo labels:  ",selected_p_labels)
+            #print("First selection pseudo labels:  ",selected_p_labels)
             print("First selection true labels:    ",first_selection_K_samples_labels)
             print("First selection distribution:   ",first_selection_K_samples_distribution)
             
             
             ##### Second selection statistics #####
-            
+            """
             second_selection_samples_labels=[]
-            second_selection_samples_p_labels = []
+            #second_selection_samples_p_labels = []
             for i in second_selection_samples:
                 second_selection_samples_labels.append(data_train.targets[i])
-                second_selection_samples_p_labels.append(pseudo_labels[i])
+                #second_selection_samples_p_labels.append(pseudo_labels[i])
             second_selection_samples_distribution=Counter(second_selection_samples_labels)
-            second_selection_samples_p_distribution=Counter(second_selection_samples_p_labels)
-            second_selected_p_labels=[]
-            for sample_index in second_selection_samples:
-                second_selected_p_labels.append(pseudo_labels[sample_index])
+            #second_selection_samples_p_distribution=Counter(second_selection_samples_p_labels)
+            #second_selected_p_labels=[]
+            #for sample_index in second_selection_samples:
+                #second_selected_p_labels.append(pseudo_labels[sample_index])
+            print("Row: true label, Col: # times picked from bin")
+            print(counts)
             print("Second selection true labels:    ",second_selection_samples_labels)
-            print("Second selection pseudo labels:  ",second_selected_p_labels)
-            print("Query pseudo label distribution: ", second_selection_samples_p_distribution)
+            #print("Second selection pseudo labels:  ",second_selected_p_labels)
+            #print("Query pseudo label distribution: ", second_selection_samples_p_distribution)
             print("Query true label distribution:   ",second_selection_samples_distribution)
-            
+            """
             
             ##### Update the labeled dataset and the unlabeled dataset, respectively #####
             
             # use one of the below depending on the selection
             
-            #labeled_set += first_selection_K_samples              
-            labeled_set += second_selection_samples
+            labeled_set += first_selection_K_samples              
+            #labeled_set += second_selection_samples
             
             # gathering the true labels for the queried data
             labeled_set_labels=[]
@@ -488,7 +498,6 @@ if __name__ == '__main__':
     
     ##### Relevant data for analysis #####
     
-    print("1 cycle = %.3f, 7 cycles = %.3f, 11 cycles = %.3f, 15 cycles = %.3f" % (y[0], y[6], y[10], y[14]))
     plt.figure()
     plt.scatter(x, y)
     plt.xlabel("Labelled Examples")
@@ -498,4 +507,4 @@ if __name__ == '__main__':
     
     np.set_printoptions(precision=3)
     print(np.array(y))
-    np.savetxt('acc.txt', y)
+    np.savetxt('acc.txt', y, fmt='%.3f')

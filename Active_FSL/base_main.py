@@ -11,9 +11,14 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.data.sampler import SubsetRandomSampler
-import baal
+from datetime import datetime
+from config import *
+
+import torch.hub
+from torchvision.models import get_model_weights, get_weight
 
 # Torchvison
+import torchvision
 import torchvision.transforms as T
 import torchvision.models as models
 from torchvision.datasets import CIFAR100, CIFAR10
@@ -27,17 +32,16 @@ from torchvision.utils import save_image
 from tqdm import tqdm
 
 # Custom
+import models
 import models.resnet as resnet
-from config import *
 from data.sampler import SubsetSequentialSampler
-from PIL import Image 
 import numpy as np
 from collections import Counter
 import matplotlib.pyplot as plt
 from torch.distributions import Categorical
 from sklearn.manifold import TSNE
-import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
 
 # Python and Numpy Random Seed
 random.seed(123) # controls python packages, e.g. random.choice()
@@ -66,9 +70,9 @@ test_transform = T.Compose([
 ################### Data loading ###################
 
 ############## Load pickled NCT ##############
-#data_test  = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=False,  transform=test_transform)
-#data_unlabeled   = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=test_transform)
-#data_train = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=train_transform)
+# data_test  = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=False,  transform=test_transform)
+# data_unlabeled   = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=test_transform)
+# data_train = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=train_transform)
 
 
 ############## Load pickled breakhis dataset ##############
@@ -192,7 +196,7 @@ def get_uncertainty_entropy(models, unlabeled_loader,unlabeled_set):
             scores, _ = models['backbone'](inputs)
             probs = torch.nn.functional.softmax(scores, dim=1)
             for x in probs:
-                entropylist.append(Categorical(probs = x).entropy())
+                entropylist.append(Categorical(probs = x).entropy())  # 0 < uncertainty_score < log 1/N
         entropylist=torch.Tensor(entropylist)
     return entropylist
 
@@ -210,7 +214,7 @@ def get_uncertainty_margin(models, unlabeled_loader):
             for x in probs:
                 xb=x.sort(0,True)[0]
                 marginvalue=xb[0]-xb[1]
-                uncertainty_score.append(1.0/marginvalue)                
+                uncertainty_score.append(1.0/marginvalue)      # 1 < uncertainty_score < inf                
         uncertainty_score=torch.Tensor(uncertainty_score)
     return uncertainty_score
 
@@ -220,16 +224,38 @@ def get_uncertainty_LC(models, unlabeled_loader):
     models['backbone'].eval()
     uncertainty_score=[]
     with torch.no_grad():
-        for (inputs, labels) in unlabeled_loader:
+        for (inputs, labels, filenames) in unlabeled_loader:
             inputs = inputs.cuda()
             labels = labels.cuda()
             scores, _ = models['backbone'](inputs)        
             probs = torch.nn.functional.softmax(scores, dim=1)           
             for x in probs:
                 xb=x.sort(0,True)[0]               
-                uncertainty_score.append(1.0/xb[0])                
+                uncertainty_score.append(1.0/xb[0])    # 1 < uncertainty score < inf            
         uncertainty_score=torch.Tensor(uncertainty_score)
     return uncertainty_score
+
+
+def get_clusters(loader):
+    
+    model = models.resnet18(pretrained=True)
+    #model = torch.hub.load('pytorch/vision', 'resnet18', weights='ResNet18_Weights.IMAGENET1K_V1')
+    #model = torch.hub.load('pytorch/vision', 'resnet18')
+    model = torch.nn.Sequential(*list(model.children())[:-1])
+
+    features = []
+
+    with torch.no_grad():
+        for images, labels, filenames in loader:
+            output = model(images)
+            features.append(output.squeeze().numpy())
+    features = np.concatenate(features)
+
+    kmeans = KMeans(n_clusters=NUM_CLASSES, random_state=0).fit(features)
+
+    labels = kmeans.labels_
+
+    return labels
 
 ################### Main ###################
 if __name__ == '__main__':
@@ -237,6 +263,10 @@ if __name__ == '__main__':
     y = [];
     x = [i*9 for i in range(CYCLES)]
     counts = np.zeros((NUM_CLASSES, NUM_CLASSES))
+    
+    num_samples = []
+    
+    addendum_test = ADDENDUM
     
     for trial in range(TRIALS): ## TRIALS=1
         indices = list(range(NUM_TRAIN)) # in config.py, we defined NUM_TRAIN = 10000
@@ -250,12 +280,12 @@ if __name__ == '__main__':
         
         
         train_loader = DataLoader(data_train, 
-                                    batch_size=NUM_CLASSES, # batchsize of the train_loader is the num_classes
+                                    batch_size=BATCH, # batchsize of the train_loader is the num_classes
                                     sampler=SubsetSequentialSampler(labeled_set), 
                                     pin_memory=True)
         
         test_loader  = DataLoader(data_test, 
-                                    batch_size=BATCH # config.py ： BATCH = 128
+                                    batch_size=BATCH # config.py
                                     ) 
         
         # dict for dataloaders
@@ -280,12 +310,7 @@ if __name__ == '__main__':
         
         
         #Before finetuning the classifier, first we test it on the test set to get the original test accuracy.
-        acc_all,acc = test(models, dataloaders, mode='test')
-        
-        print("original model test acc =",acc_all)
-        for i in range(NUM_CLASSES):
-            print("Class{}_acc:{}".format(i,acc[i]))
-            
+        acc_all,acc = test(models, dataloaders, mode='test')    
             
 
         ##### Active learning cycles #####
@@ -304,7 +329,7 @@ if __name__ == '__main__':
             schedulers = {'backbone': sched_backbone}
             
             # formatting for each cycle
-            print('--------------------------------Cycle %d/%d--------------------------------' % (cycle+1, CYCLES))
+            print('--------------------------------Cycle %d/%d--------------------------------' % (cycle, CYCLES-1))
             
             # Training
             train(models, criterion, optimizers, schedulers, dataloaders, EPOCH, EPOCHL)
@@ -313,9 +338,11 @@ if __name__ == '__main__':
             acc_all, acc = test(models, dataloaders, mode='test')
             
             # results of the testing
-            print('Trial %d/%d || Cycle %d/%d || Label set size %d: Test acc %.3f%%' % (trial+1, TRIALS, cycle+1, CYCLES, len(labeled_set), acc_all))
+            print('Trial %d/%d || Cycle %d/%d || Label set size %d: Test acc %.3f%%' % (trial+1, TRIALS, cycle, CYCLES-1, len(labeled_set), acc_all))
             for i in range(NUM_CLASSES):
                 print("Class %d Acc: %.3f" % (i,acc[i]))
+                
+            num_samples.append(len(labeled_set))
             
             # for plotting
             y.append(acc_all)
@@ -341,24 +368,37 @@ if __name__ == '__main__':
             
             """ margin only """
             #uncertainty = get_uncertainty_margin(models, unlabeled_loader)
+            #strategy = 'margin'
             
             
             """ entropy only """
-            #uncertainty = get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set) #for entropy
-            
+            # uncertainty = get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set)
+            # strategy = 'entropy'
             
             """ margin and entropy unnormalized """ #best one so far
-            uncertainty = get_uncertainty_margin(models, unlabeled_loader) + get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set)
+            uncertainty_marg = get_uncertainty_margin(models, unlabeled_loader)
+            uncertainty_ent = get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set)
+            
+            uncertainty = np.add(uncertainty_marg, uncertainty_ent)
+            
+            strategy = 'margin_entropy_unnormalized'
+            
+            """ margin and entropy normalized """
+            
+            #uncertainty_marg = get_uncertainty_margin(models, unlabeled_loader)
+            #uncertainty_ent = get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set)
             
             
-            """ normalized margin and entropy """
-            #uncertainty = torch.nn.functional.normalize(get_uncertainty_margin(models, unlabeled_loader), dim=0) + torch.nn.functional.normalize(get_uncertainty_entropy(models, unlabeled_loader, unlabeled_set), dim=0)
+            #uncertainty_marg_shifted = [x-1 for x in uncertainty_marg]
+            
+            #uncertainty = np.add(np.tanh(uncertainty_marg_shifted), np.tanh(uncertainty_ent))
+            
+            #strategy = 'margin_entropy_normalized'
+            
             
             """ Test """
             #probabilities = probs(models, dataloaders, mode='test')
             #uncertainty = get_uncertainty_LC(models, unlabeled_loader)
-            
-            
             
             
             """ Arguments """
@@ -366,35 +406,66 @@ if __name__ == '__main__':
             
             # optional randomizer for benchmarking
             # arg = arg[torch.randperm(len(arg))]
+            # strategy = 'random'
+            
+            """ Plotting (for debugging) """
+            
+            #time_now = datetime.now().strftime("%m-%d-%H-%M")
+            
+            #plt.figure()
+            #plt.scatter(range(len(uncertainty)), np.tanh(sorted(uncertainty_marg)), label='margin')
+            #plt.scatter(range(len(uncertainty)), np.tanh(sorted(uncertainty_ent)), label='entropy')
+            #plt.scatter(range(len(uncertainty)), sorted(uncertainty), label='overall')
+            
+            #plt.legend()
+            #plt.savefig('img/' + time_now + '_' + strategy + '_' + str(cycle) + '.png')
+            
+            
             
             
             ##### First round selection - individually selected samples #####
             
+            num_splits = NUM_CLASSES
+            
+            splits = np.array_split(arg, ADDENDUM) #try reversed(arg)
+            
+            revised_arg = splits[0:num_splits] # try num_splits
+            
             # ADDENDUM most informative samples method
-            # first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][-ADDENDUM:].numpy()) # ADDENDUM=K, select K samples in each active learning cycle.
+            # first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][-ADDENDUM:].numpy()) 
             
             # even selection method
-            step = len(unlabeled_set)//ADDENDUM + 1
-            first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][::step].numpy())
+            #step = len(unlabeled_set)//NUM_CLASSES + 1
+            #first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][::step].numpy())
             
+            # moving even selection method
+            first_selection_K_samples = []
+            loc = 0
             
+            for split in revised_arg:
+                loc = cycle #cycle * len(split)//CYCLES
+                first_selection_K_samples.append(split[loc])
+                
             ##### Second round selection - pseudocomplete sets #####
             
             list0=[]
             second_selection_samples=[]
             
+            #clusters = get_clusters(unlabeled_loader)
+            
             """ Regular pseudocomplete sets"""
             
-            """
+            '''
             for item in torch.flip(arg,[0]): # arg is the query list (indices)
-                true_label=data_unlabeled.targets[item] # target is the true label
-                #true_label = pseudo_labels[item]
-                if list0.count(true_label)<NUM_SHOTS:
-                    list0.append(true_label)
+                #true_label=data_unlabeled.targets[item] # target is the true label
+                p_label = pseudo_labels[item]
+                #cluster_label = clusters[item]
+                if list0.count(p_label)<NUM_SHOTS:
+                    list0.append(p_label)
                     second_selection_samples.append(item)
                 if len(list0)>(NUM_CLASSES*NUM_SHOTS-1): # sample a complete N-way one-shot support set with pseudolabels
                     break
-            """
+            '''
 
             
             
@@ -418,7 +489,7 @@ if __name__ == '__main__':
             """    
             
             
-            """ Print Statistics """
+            ##### Print Statistics #####
             
             ##### First selection statistics #####
             first_selection_K_samples_labels=[]
@@ -437,24 +508,21 @@ if __name__ == '__main__':
             
             
             ##### Second selection statistics #####
-            """
+            
             second_selection_samples_labels=[]
-            #second_selection_samples_p_labels = []
+            second_selection_samples_p_labels = []
             for i in second_selection_samples:
                 second_selection_samples_labels.append(data_train.targets[i])
-                #second_selection_samples_p_labels.append(pseudo_labels[i])
+                second_selection_samples_p_labels.append(clusters[i])
             second_selection_samples_distribution=Counter(second_selection_samples_labels)
-            #second_selection_samples_p_distribution=Counter(second_selection_samples_p_labels)
-            #second_selected_p_labels=[]
-            #for sample_index in second_selection_samples:
-                #second_selected_p_labels.append(pseudo_labels[sample_index])
-            print("Row: true label, Col: # times picked from bin")
-            print(counts)
-            print("Second selection true labels:    ",second_selection_samples_labels)
-            #print("Second selection pseudo labels:  ",second_selected_p_labels)
+            second_selection_samples_p_distribution=Counter(second_selection_samples_p_labels)
+            #print("Row: true label, Col: # times picked from bin")
+            #print(counts)
+            #print("Second selection true labels:    ",second_selection_samples_labels)
+            #print("Second selection pseudo labels:  ",second_selection_samples_p_labels)
             #print("Query pseudo label distribution: ", second_selection_samples_p_distribution)
-            print("Query true label distribution:   ",second_selection_samples_distribution)
-            """
+            #print("Query true label distribution:   ",second_selection_samples_distribution)
+            
             
             ##### Update the labeled dataset and the unlabeled dataset, respectively #####
             
@@ -498,13 +566,18 @@ if __name__ == '__main__':
     
     ##### Relevant data for analysis #####
     
-    plt.figure()
-    plt.scatter(x, y)
-    plt.xlabel("Labelled Examples")
-    plt.ylabel("Test Accuracy")
-    plt.title("Adam Optimizer, LR = {}, Seed {}".format(LR, r_seed))
-    plt.savefig('img/acc_graph.png')
+    # plt.figure()
+    # plt.scatter(x, y)
+    # plt.xlabel("Labelled Examples")
+    # plt.ylabel("Test Accuracy")
+    # plt.title("Adam Optimizer, LR = {}, Seed {}".format(LR, r_seed))
+    # plt.savefig('img/acc_graph.png')
     
-    np.set_printoptions(precision=3)
-    print(np.array(y))
-    np.savetxt('acc.txt', y, fmt='%.3f')
+    # np.set_printoptions(precision=3)
+    # print(np.array(y))
+    
+    time_now = datetime.now().strftime("%Y-%m-%d-%H-%M")
+    
+    num_samples_total = num_samples[-1]
+    
+    np.savetxt('accuracies/' + time_now + '_' + strategy + '_seed' + str(RANDOM_SEED) + '_evenwbigshift.csv', np.c_[num_samples, y], fmt=['%d', '%.3f'], header='Labelled Samples, Accuracy', delimiter=',')

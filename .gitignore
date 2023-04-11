@@ -1,6 +1,9 @@
-Generate_Pseudo_Labels/
-Pickle_Dataset/
-Pretrain_FSL_Model/
+Pickle_Dataset/bin/
+Pickle_Dataset/test/
+Pickle_Dataset/train/
 Active_FSL/breakhis_pickle/
 Active_FSL/LC25000_pickle/
 Active_FSL/nct_pickle/
+Active_FSL/accuracies/
+Active_FSL/data/
+Active_FSL/img/

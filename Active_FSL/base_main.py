@@ -70,15 +70,15 @@ test_transform = T.Compose([
 ################### Data loading ###################
 
 ############## Load pickled NCT ##############
-# data_test  = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=False,  transform=test_transform)
-# data_unlabeled   = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=test_transform)
-# data_train = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=train_transform)
+data_test  = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=False,  transform=test_transform)
+data_unlabeled   = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=test_transform)
+data_train = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=train_transform)
 
 
 ############## Load pickled breakhis dataset ##############
-data_test  = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=False,  transform=test_transform)
-data_unlabeled   = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=test_transform)
-data_train = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=train_transform)
+#data_test  = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=False,  transform=test_transform)
+#data_unlabeled   = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=test_transform)
+#data_train = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=train_transform)
 
 
 ############## load pickled LC25000 dataset ##############
@@ -87,7 +87,7 @@ data_train = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Ac
 # data_train = LC25000_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/LC25000_pickle", train=True,  transform=train_transform)
 
 ############## load pseudo labels ##############
-pseudo_labels=torch.load("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Generate_Pseudo_Labels/breakhis_pseudo_labels_checkpoint0199.pth")
+pseudo_labels=torch.load("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Generate_Pseudo_Labels/pseudo_labels_cycle10.pth")
 pseudo_labels=pseudo_labels.cpu().detach().numpy()
 
 
@@ -97,7 +97,7 @@ pseudo_labels=pseudo_labels.cpu().detach().numpy()
 
 # add parameter for the double train
 # in loop do something like if PARAM == 2 or i % 2 == PARAM - use 2 for full set, 1 for first subset, 0 for second subset
-def train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss, sub=2):
+def train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss):
     
     models['backbone'].train()
     i = 0
@@ -114,12 +114,12 @@ def train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss, s
         optimizers['backbone'].step()
             
         
-def train(models, criterion, optimizers, schedulers, dataloaders, num_epochs, epoch_loss, sub=2):
+def train(models, criterion, optimizers, schedulers, dataloaders, num_epochs, epoch_loss):
 
     print('>> Training...')
     for epoch in range(num_epochs):
         #schedulers['backbone'].step()
-        train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss, sub)
+        train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss)
         schedulers['backbone'].step()
     print('>> Finished Training.')
 
@@ -244,7 +244,7 @@ def get_clusters(loader):
     features = []
 
     with torch.no_grad():
-        for images, labels in loader:
+        for (images, labels) in loader:
             output = model(images)
             features.append(output.squeeze().numpy())
     features = np.concatenate(features)
@@ -259,12 +259,10 @@ def get_clusters(loader):
 if __name__ == '__main__':
     
     y = [];
-    x = [i*9 for i in range(CYCLES)]
+    x = [i*ADDENDUM for i in range(CYCLES)]
     counts = np.zeros((NUM_CLASSES, NUM_CLASSES))
     
     num_samples = []
-    
-    addendum_test = ADDENDUM
     
     for trial in range(TRIALS): ## TRIALS=1
         indices = list(range(NUM_TRAIN)) # in config.py, we defined NUM_TRAIN = 10000
@@ -425,8 +423,9 @@ if __name__ == '__main__':
             
             
             
-            ##### First round selection - individually selected samples #####
+            ##### First type of selection - individually selected samples #####
             
+            '''
             num_splits = NUM_CLASSES
             
             splits = np.array_split(arg, ADDENDUM) #try reversed(arg) or arg
@@ -437,36 +436,84 @@ if __name__ == '__main__':
             # first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][-ADDENDUM:].numpy()) 
             
             # even selection method
-            step = len(unlabeled_set)//NUM_CLASSES + 1
-            first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][::step].numpy())
+            #step = len(unlabeled_set)//NUM_CLASSES + 1
+            #first_selection_K_samples=list(torch.tensor(unlabeled_set)[arg][::step].numpy())
             
             # moving even selection method
-            '''
+            
             first_selection_K_samples = []
             loc = 0
             
             for split in revised_arg:
-                loc = cycle #* len(split)//CYCLES #or cycle
+                loc = cycle * len(split)//CYCLES #or cycle
                 first_selection_K_samples.append(unlabeled_set[split[loc]])
             '''
+                
+            ##### Second type of selection - set-aware selected samples #####
+            
+            second_selection_K_samples = []
+            list0 = []
+            
+            """ top N pseudo complete sets """
+            
+            '''
+            for item in arg: # arg is the query list (indices)
+                
+                #true_label=data_unlabeled.targets[item] # target is the true label
+                
+                p_label = pseudo_labels[item]
+                
+                if list0.count(p_label)<NUM_SHOTS:
+                    list0.append(p_label)
+                    second_selection_K_samples.append(item)
+                    
+                if len(list0)>(NUM_CLASSES*NUM_SHOTS-1): # sample a complete N-way one-shot support set with pseudolabels
+                    break
+            '''        
+                    
+            """ evenly selected pseudo complete sets """
+            
+            
+            splits = np.array_split(arg, ADDENDUM)
+            i = 0
+            while (len(list0) < NUM_CLASSES and i < 10):
+                for splitnum, phase in enumerate(splits):
+                    for item in phase:                              # arg is the query list                         
+                        p_label = pseudo_labels[item]               # using pseudo labels
+                        #p_label = data_unlabeled.targets[item]     # using true labels
+                        if list0.count(p_label) == 0 and splitnum < 6:
+                            second_selection_K_samples.append(item)
+                            list0.append(p_label)
+                            counts[p_label, splitnum] += 1
+                            break
+                i += 1
+             
+            
             
             
             ##### Print Statistics #####
             
-            
+            '''
             first_selection_K_samples_labels=[]
             for i in first_selection_K_samples:
                 first_selection_K_samples_labels.append(data_train.targets[i])
             first_selection_K_samples_distribution=Counter(first_selection_K_samples_labels)
             
-            print("First selection true labels:    ",first_selection_K_samples_labels)
-            print("First selection distribution:   ",first_selection_K_samples_distribution)
+            print("Selection distribution:   ",first_selection_K_samples_distribution)
+            '''
             
+            second_selection_K_samples_labels=[]
+            for i in second_selection_K_samples:
+                second_selection_K_samples_labels.append(data_train.targets[i])
+            second_selection_K_samples_distribution=Counter(second_selection_K_samples_labels)
+            
+            print("Selection distribution:   ",second_selection_K_samples_distribution)
             
             
             ##### Update the labeled dataset and the unlabeled dataset, respectively #####
             
-            labeled_set += first_selection_K_samples           
+            #labeled_set += first_selection_K_samples           
+            labeled_set += second_selection_K_samples
             
             # gathering the true labels for the queried data
             labeled_set_labels=[]
@@ -502,4 +549,4 @@ if __name__ == '__main__':
     
     num_samples_total = num_samples[-1]
     
-    np.savetxt('accuracies/' + time_now + '_' + strategy + '_seed' + str(RANDOM_SEED) + 'evenmoving.csv', np.c_[num_samples, y], fmt=['%d', '%.3f'], header='Labelled Samples, Accuracy', delimiter=',')
+    np.savetxt('accuracies/' + time_now + '_' + strategy + '_seed' + str(RANDOM_SEED) + 'pseudoeven.csv', np.c_[num_samples, y], fmt=['%d', '%.3f'], header='Labelled Samples, Accuracy', delimiter=',')

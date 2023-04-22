@@ -55,13 +55,13 @@ from torch.distributions import Categorical
 from sklearn.manifold import TSNE
 import seaborn as sns
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 
-
-os.environ["CUDA_VISIBLE_DEVICES"] = '0,1' # use GPU 1.
+#os.environ["CUDA_VISIBLE_DEVICES"] = '0,1' # use GPU 1.
 
 #### settings ######
-r_seed=123
+r_seed=RANDOM_SEED
 ####################
 
 ##### Reproducibility #####
@@ -73,27 +73,15 @@ torch.manual_seed(r_seed)
 torch.cuda.manual_seed(r_seed)
 
 #torch.backends.cudnn.deterministic = True # It applies to CUDA convolution operations for reproducibility.
-os.environ['CUBLAS_WORKSPACE_CONFIG']=':16:8'  #  if you are using CUDA tensors, and your CUDA version is 10.2 or greater, you should set the environment variable CUBLAS_WORKSPACE_CONFIG according to CUDA documentation: https://docs.nvidia.com/cuda/cublas/index.html#cublasApi_reproducibility
-torch.set_deterministic(True) # It affects all the normally-nondeterministic operations for reproducibility.
+#os.environ['CUBLAS_WORKSPACE_CONFIG']=':16:8'  #  if you are using CUDA tensors, and your CUDA version is 10.2 or greater, you should set the environment variable CUBLAS_WORKSPACE_CONFIG according to CUDA documentation: https://docs.nvidia.com/cuda/cublas/index.html#cublasApi_reproducibility
+torch.backends.cudnn.deterministic = True # It affects all the normally-nondeterministic operations for reproducibility.
 torch.backends.cudnn.benchmark = False #It causes cuDNN to deterministically select an algorithm, possibly at the cost of reduced performance.
 
 # we can assign the work to the GPU card '1' or '0' or '0,1'. When '0,1', it uses GPU 0 first, if not enough, then use GPU 0 and 1.
-os.environ["CUDA_VISIBLE_DEVICES"] = '0,1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+
+
 ##############################
-
-#Define the data augamentation(transformations) for data loader.
-# train_transform = T.Compose([
-
-#     T.Resize([84,84]), # We resized the source dataset images to 84*84 pixels while pretraining the FSL model, so here we must resize training set and test set to the same image size.
-#     T.ToTensor(), # Converts a PIL Image or numpy.ndarray (H x W x C) in the range [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0] 
-    
-#     # #T.Normalize([0.7051, 0.5320, 0.7401], [0.1574, 0.2173, 0.1652])
-# ])
-# test_transform = T.Compose([
-#     T.Resize([84,84]), # test set resize has to be consistant with the training set.
-#     T.ToTensor(),   
-#     #T.Normalize([0.7051, 0.5320, 0.7401], [0.1574, 0.2173, 0.1652])
-# ])
 moco_transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.RandomResizedCrop(224, scale=(0.2, 1.)),  ##和MOCO 训练时一致的resize和normalization
@@ -106,9 +94,10 @@ moco_transform = transforms.Compose([
 
 ########## Data loading #############
 
-data_test  = NCT_PICKLE("/home/jingyi/ACFSL/nct_pickle", train=False,  transform=moco_transform)
-data_unlabeled   = NCT_PICKLE("/home/jingyi/ACFSL/nct_pickle", train=True,  transform=moco_transform)
-data_train = NCT_PICKLE("/home/jingyi/ACFSL/nct_pickle", train=True,  transform=moco_transform)
+############## Load pickled NCT ##############
+data_test  = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=False,  transform=moco_transform)
+data_unlabeled   = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=moco_transform)
+data_train = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=moco_transform)
 
 
 ############ Load breakhis dataset ###########
@@ -120,17 +109,20 @@ data_train = NCT_PICKLE("/home/jingyi/ACFSL/nct_pickle", train=True,  transform=
 
 
 ###########load first-generation pseudo labels###########
-pseudo_labels=torch.load("/home/jingyi/ACFSL/nct_dataset_tif/data_png/pseudo_labels_checkpoint0199.pth") # NCT pseudo labels by moco+kmeans
+pseudo_labels=torch.load("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Generate_Pseudo_Labels/pseudo_labels_cycle10.pth")
 pseudo_labels=pseudo_labels.cpu().detach().numpy()
    
 ###### Training #######
-def train(models, criterion, optimizers, schedulers,dataloaders,num_epochs):
-    print('>> Train a Model.')
+def train(models, criterion, optimizers, schedulers, dataloaders, num_epochs):
+    print('>> Training...')
     models.train() # Set the model to training mode
+    
     # Iterate over the training set for a few epochs
     for epoch in range(num_epochs):
         running_loss = 0.0
-        schedulers.step()
+        
+        #schedulers.step() was here
+        
         for data in tqdm(dataloaders['train'], leave=False):
             # Move the inputs and labels to the GPU
             inputs = data[0].cuda()
@@ -138,18 +130,23 @@ def train(models, criterion, optimizers, schedulers,dataloaders,num_epochs):
 
             # Zero the gradients
             optimizers.zero_grad() #In this for loop if we do not set the optimizer to zero every time the past value it may get add up and changes the result. So we use zero_grad to not face the wrong accumulated results.
+            
             # Make predictions
-            #scores, _ = models(inputs)
             scores= models(inputs)
 
             target_loss = criterion(scores, labels)
             loss = torch.sum(target_loss) / target_loss.size(0) 
             running_loss += loss.item()
+            
             # Backpropagate the gradients
             loss.backward()
+            
             # Update the parameters
             optimizers.step()
-            ####To obeserve training loss####
+            
+        schedulers.step() #
+        
+        ####To obeserve training loss####
         #print("Epoch {} average loss: {:.4f}".format(epoch, running_loss / len(dataloaders['train'])))
     
     print('>> Finished.')
@@ -160,7 +157,7 @@ def test(models, dataloaders, mode='val'):
     models.eval()
     total = 0
     correct = 0
-    list_of_classes=list(range(0,NUM_CLASSES,1))
+    list_of_classes=list(range(NUM_CLASSES))
     acc = [0 for c in list_of_classes]
     getacc1= [0 for c in list_of_classes]
     getacc2= [0 for c in list_of_classes]
@@ -169,40 +166,116 @@ def test(models, dataloaders, mode='val'):
     pred_labels = pred_labels.type(torch.int64)
     true_labels= torch.Tensor()     # true_labels will save the true labels of all samples.
     true_labels = true_labels.type(torch.int64)    
+    
+    
     with torch.no_grad():
-        for (inputs, labels,fnames) in dataloaders[mode]: #fnames get the .png file names. 
+        for (inputs, labels) in dataloaders[mode]: #fnames get the .png file names. 
             inputs = inputs.cuda()
             labels = labels.cuda()
             pred_labels=pred_labels.cuda()
             true_labels=true_labels.cuda()
+            
             scores= models(inputs)                   # score is the predicted possibility of each class for the specific sample            
-
-            #scores, _ = models(inputs)                   # score is the predicted possibility of each class for the specific sample            
-            _, preds = torch.max(scores.data, 1) # torch.max returns the result tuple of two output tensors (max, max_indices)
+            _, preds = torch.max(scores.data, 1)     # torch.max returns the result tuple of two output tensors (max, max_indices)
+            
             total += labels.size(0)
             correct += (preds == labels).sum().item()
+            
             for c in list_of_classes:
                 getacc1[c]+=((preds == labels) * (labels == c)).sum().item()
                 getacc2[c]+=(labels == c).sum().item()
+                
             true_labels=torch.cat((true_labels,labels),0)   # pred_labels will save the predicted labels of all samples.         
             pred_labels=torch.cat((pred_labels,preds),0)    # true_labels will save the true labels of all samples.
+            
     acc_all=100 * correct / total
+    
     for c in list_of_classes:
-        acc[c] = getacc1[c] /max(getacc2[c],1)                
+        acc[c] = getacc1[c] /max(getacc2[c],1)      
+        
     return acc_all, acc, true_labels, pred_labels
+
+
+###### Query strategies ######
+
+def get_uncertainty_margin(models, dataloaders):
+    models.eval()
+    uncertainty_score=[]    
+    
+    with torch.no_grad():
+        for (inputs, labels) in unlabeled_loader:
+            inputs = inputs.cuda()
+            labels = labels.cuda()
+            
+            scores = models(inputs)
+            probs = torch.nn.functional.softmax(scores, dim=1)\
+            
+            for x in probs:
+                xb=x.sort(0,True)[0]
+                marginvalue=xb[0]-xb[1]
+                uncertainty_score.append(1.0/marginvalue)      # 1 < uncertainty_score < inf
+                
+        uncertainty_score=torch.Tensor(uncertainty_score)
+    return uncertainty_score
+
+
+def get_uncertainty_entropy(models, unlabeled_loader):
+    models.eval()
+    entropylist=[]
+    with torch.no_grad():
+        for (inputs, labels) in unlabeled_loader:
+            inputs = inputs.cuda()
+            labels = labels.cuda()
+            
+            scores = models(inputs)
+            probs = torch.nn.functional.softmax(scores, dim=1)
+            
+            for x in probs:
+                entropylist.append(Categorical(probs = x).entropy())  # 0 < uncertainty_score < log N
+                
+        entropylist=torch.Tensor(entropylist)
+    return entropylist
+
+
+def get_uncertainty_marginentropy(models, dataloaders):
+    models.eval()
+    uncertainty_list = []
+    
+    with torch.no_grad():
+        for (inputs, labels) in unlabeled_loader:
+            inputs = inputs.cuda()
+            labels = labels.cuda()
+            
+            scores = models(inputs)
+            probs = torch.nn.functional.softmax(scores, dim=1)
+            
+            for x in probs:
+                xb = x.sort(0, True)[0]
+                marginvalue = 1.0/(xb[0] - xb[1])
+                entropy = Categorical(probs = x).entropy()
+                
+                uncertainty_list.append(marginvalue + entropy)
+                
+        uncertainty_list = torch.Tensor(uncertainty_list)
+    return uncertainty_list
 
 
 
 ######### Main #########
 if __name__ == '__main__':
     
+    time_now = datetime.now().strftime("%m-%d-%H-%M")
+    
     ##### Save all printed content to log.txt file. #####
     dir_name="/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/logs/"
     if not os.path.isdir(dir_name):
         os.makedirs(dir_name)
-    log = open(dir_name+"replace_fsl_with_moco_fixed_plabels_log.txt", mode='a',encoding='utf-8')
-
+    log = open(dir_name + time_now +"_moco_fixed_plabels_log.txt", mode='a',encoding='utf-8')
     
+    y = []
+    num_samples = []
+
+    NUM_UNLABELED=NUM_TRAIN
     ##### Create lists of labeled_set, unlabeled_set, containing sample indices. #####
     indices = list(range(NUM_UNLABELED))# NUM_UNLABELED is the number of samples in unlabeled set at the very beginning.                            # e.g. There are 50000 samples in unlabeled set, but we can set NUM_UNLABELED=10000 to use just the first 10000 samples.
     labeled_set=[] # With no initial labeled set
@@ -271,26 +344,38 @@ if __name__ == '__main__':
                                  weight_decay=WDECAY)
         schedulers = lr_scheduler.MultiStepLR(optimizers, milestones=MILESTONES)
         
+        print('--------------------------------Cycle %d/%d--------------------------------' % (cycle, CYCLES-1))
+        
         ####### Training and test##########
         if cycle>0: # In the first cycle, the labeled set is empty, so we don't train the model. We start training the model at the second AL cycle.
-            
+
             #finetune the moco classifier
             train(models, criterion, optimizers, schedulers, dataloaders, EPOCH)
+            
             #Update pseudo labels here
-            acc_all_unlabeled,acc_unlabeled,true_labels_unlabeled,pseudo_labels = test(models, dataloaders, mode='all')
+            acc_all_unlabeled, acc_unlabeled, true_labels_unlabeled, pseudo_labels = test(models, dataloaders, mode='all')
+            
             torch.save(pseudo_labels,"/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/p_labels/pseudo_labels_cycle{}.pth".format(cycle+1))
             print('Cycle {}/{} || Label set size {}: unlabeled set acc {}'.format(cycle+1, CYCLES, len(labeled_set), acc_all_unlabeled),file = log)
-            print('Cycle {}/{} || Label set size {}: unlabeled set acc {}'.format(cycle+1, CYCLES, len(labeled_set), acc_all_unlabeled))
+            #print('Cycle %d/%d || Label set size %d: Test acc %.3f%%' % (cycle, CYCLES-1, len(labeled_set), acc_all_unlabeled))
+            
             for i in range(NUM_CLASSES):
                 print("unlabeled set Class{}_acc:{}".format(i,acc_unlabeled[i]),file = log)
-                print("unlabeled set Class{}_acc:{}".format(i,acc_unlabeled[i]))
-            acc_all,acc,true_labels,pred_labels = test(models, dataloaders, mode='test')       
+                #print("Unlabeled set Class %d Acc: %.3f" % (i,acc_unlabeled[i]))
+            
             ###### Test Result Visualization and Statistics  #####
+            
+            acc_all,acc,true_labels,pred_labels = test(models, dataloaders, mode='test')       
+            
             print('Cycle {}/{} || Label set size {}: Test set acc {}'.format(cycle+1, CYCLES, len(labeled_set), acc_all),file = log)
-            print('Cycle {}/{} || Label set size {}: Test set acc {}'.format( cycle+1, CYCLES, len(labeled_set), acc_all))
+            print('Cycle %d/%d || Label set size %d: Test acc %.3f%%' % (cycle, CYCLES-1, len(labeled_set), acc_all))
             for i in range(NUM_CLASSES):
                 print("Class{}_acc:{}".format(i,acc[i]),file = log)
-                print("Class{}_acc:{}".format(i,acc[i]))
+                print("Class %d Acc: %.3f" % (i,acc[i]))
+                
+                
+            y.append(acc_all)
+            num_samples.append(len(labeled_set))
         
         ##################################################################
         ###### Create unlabeled dataloader for the unlabeled unlabeled_set###############
@@ -300,17 +385,40 @@ if __name__ == '__main__':
                                         pin_memory=True)
     
         
-      ###########################################################################################
+        #########################################################################################
         
-        # ####### randomly select one pseudo complete set each cycle######################
+        uncertainty = get_uncertainty_marginentropy(models, unlabeled_loader)
+        
+        # uncertainties in descending order
+        arg = reversed(np.argsort(uncertainty))
+        
         list0=[]
         selected_samples=[]
-        for item in random_querylist: # arg_reverse is the query list in decsending order.
+        
+        ######## randomly select one pseudo complete set each cycle ########
+        '''
+        for item in random_querylist:
             pseudo_label=pseudo_labels[item]
             if list0.count(pseudo_label)<1:
                 list0.append(pseudo_label)
                 selected_samples.append(item)
             if len(list0)>(NUM_CLASSES-1):
+                break
+        '''
+        
+        ####### select pseudo complete sets using the arglist #######
+        
+        verification = [x in pseudo_labels for x in range(NUM_CLASSES)]
+        
+        print("At least one pseudo label: ", verification)
+        
+        for item in arg:
+            pseudo_label = pseudo_labels[item]
+
+            if pseudo_label not in list0:
+                list0.append(pseudo_label)
+                selected_samples.append(item)
+            if len(list0) >= NUM_CLASSES:
                 break
         
         ################################################################################################
@@ -347,16 +455,16 @@ if __name__ == '__main__':
             selected_p_labels.append(pseudo_labels[sample_index])
         integer_selected_p_labels = [x.item() for x in selected_p_labels]
 
-        print(" selected_samples_indices:",selected_samples,file = log)
-        print("selected_samples_true_labels: ",selected_samples_labels,file = log)
+        #print(" selected_samples_indices:",selected_samples,file = log)
+        #print("selected_samples_true_labels: ",selected_samples_labels,file = log)
         
-        print("selected_samples_pseuodo_labels: ",integer_selected_p_labels,file = log)
-        print("selected_samples_distribution: ",selected_samples_distribution,file = log)
+        #print("selected_samples_pseudo_labels: ",integer_selected_p_labels,file = log)
+        print("Selection Distribution: ",selected_samples_distribution,file = log)
 
-        print("selected_samples_indices:",selected_samples)
-        print("selected_samples_true_labels: ",selected_samples_labels)
-        print("selected_samples_pseuodo_labels: ",integer_selected_p_labels)
-        print("selected_samples_distribution: ",selected_samples_distribution)            
+        #print("selected_samples_indices:",selected_samples)
+        #print("selected_samples_true_labels: ",selected_samples_labels)
+        #print("selected_samples_pseuodo_labels: ",integer_selected_p_labels)
+        print("Selection Distribution: ",selected_samples_distribution)            
        
         
     
@@ -368,10 +476,10 @@ if __name__ == '__main__':
             labeled_set_labels.append(data_train.targets[i])
         labeled_set_distribution=Counter(labeled_set_labels)
         #integer_labeled_set = [x.item() for x in labeled_set]
-        print("The entire labeled set: ",labeled_set,file = log)
-        print("The entire labeled set: ",labeled_set)
-        print("The entire labeled set distribution: ",labeled_set_distribution,file = log)
-        print("The entire labeled set distribution: ",labeled_set_distribution)
+        #print("The entire labeled set: ",labeled_set,file = log)
+        #print("The entire labeled set: ",labeled_set)
+        print("Labeled Set Distribution: ",labeled_set_distribution,file = log)
+        print("Labeled Set Distribution: ",labeled_set_distribution)
         
          ###### Update the unlabeled set #######
         unlabeled_set = [i for i in indices if i not in labeled_set]
@@ -383,5 +491,9 @@ if __name__ == '__main__':
                                        sampler=SubsetSequentialSampler(labeled_set), 
                                         pin_memory=True)
         
-
+    
     log.close()
+    
+    num_samples_total = num_samples[-1]
+    
+    np.savetxt('accuracies/MoCo/' + time_now + '_seed' + str(r_seed) + 'pseudorandom.csv', np.c_[num_samples, y], fmt=['%d', '%.3f'], header='Labelled Samples, Accuracy', delimiter=',')

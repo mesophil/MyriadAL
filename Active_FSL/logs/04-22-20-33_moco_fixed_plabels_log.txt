@@ -1,0 +1,220 @@
+Selection Distribution:  Counter({3: 3, 4: 2, 0: 2, 6: 1, 5: 1})
+Labeled Set Distribution:  Counter({3: 3, 4: 2, 0: 2, 6: 1, 5: 1})
+Cycle 2/11 || Label set size 9: unlabeled set acc 34.21
+unlabeled set Class0_acc:0.9527856468366384
+unlabeled set Class1_acc:0.0
+unlabeled set Class2_acc:0.0
+unlabeled set Class3_acc:0.9949664429530202
+unlabeled set Class4_acc:0.9501160092807425
+unlabeled set Class5_acc:0.13511507052709726
+unlabeled set Class6_acc:0.251959686450168
+unlabeled set Class7_acc:0.0
+unlabeled set Class8_acc:0.0
+Cycle 2/11 || Label set size 9: Test set acc 36.51111111111111
+Class0_acc:0.962
+Class1_acc:0.0
+Class2_acc:0.0
+Class3_acc:0.993
+Class4_acc:0.943
+Class5_acc:0.13
+Class6_acc:0.258
+Class7_acc:0.0
+Class8_acc:0.0
+Selection Distribution:  Counter({8: 3, 1: 2, 4: 2, 6: 1, 0: 1})
+Labeled Set Distribution:  Counter({4: 4, 3: 3, 0: 3, 8: 3, 6: 2, 1: 2, 5: 1})
+Cycle 3/11 || Label set size 18: unlabeled set acc 53.45
+unlabeled set Class0_acc:0.9178470254957507
+unlabeled set Class1_acc:0.4985835694050991
+unlabeled set Class2_acc:0.0
+unlabeled set Class3_acc:0.7516778523489933
+unlabeled set Class4_acc:0.9837587006960556
+unlabeled set Class5_acc:0.08166295471417966
+unlabeled set Class6_acc:0.6528555431131019
+unlabeled set Class7_acc:0.0
+unlabeled set Class8_acc:0.9610921501706484
+Cycle 3/11 || Label set size 18: Test set acc 53.611111111111114
+Class0_acc:0.916
+Class1_acc:0.505
+Class2_acc:0.0
+Class3_acc:0.728
+Class4_acc:0.985
+Class5_acc:0.086
+Class6_acc:0.659
+Class7_acc:0.0
+Class8_acc:0.946
+Selection Distribution:  Counter({8: 3, 4: 2, 1: 1, 2: 1, 5: 1, 0: 1})
+Labeled Set Distribution:  Counter({4: 6, 8: 6, 0: 4, 3: 3, 1: 3, 6: 2, 5: 2, 2: 1})
+Cycle 4/11 || Label set size 27: unlabeled set acc 61.56
+unlabeled set Class0_acc:0.8781869688385269
+unlabeled set Class1_acc:0.7214353163361662
+unlabeled set Class2_acc:0.15775401069518716
+unlabeled set Class3_acc:0.6308724832214765
+unlabeled set Class4_acc:0.9918793503480279
+unlabeled set Class5_acc:0.6057906458797327
+unlabeled set Class6_acc:0.49384098544232924
+unlabeled set Class7_acc:0.0
+unlabeled set Class8_acc:0.9699658703071672
+Cycle 4/11 || Label set size 27: Test set acc 60.91111111111111
+Class0_acc:0.888
+Class1_acc:0.701
+Class2_acc:0.192
+Class3_acc:0.63
+Class4_acc:0.99
+Class5_acc:0.608
+Class6_acc:0.499
+Class7_acc:0.0
+Class8_acc:0.974
+Selection Distribution:  Counter({8: 2, 2: 2, 4: 2, 7: 1, 1: 1, 3: 1})
+Labeled Set Distribution:  Counter({4: 8, 8: 8, 3: 4, 0: 4, 1: 4, 2: 3, 6: 2, 5: 2, 7: 1})
+Cycle 5/11 || Label set size 36: unlabeled set acc 69.47
+unlabeled set Class0_acc:0.846081208687441
+unlabeled set Class1_acc:0.8517469310670444
+unlabeled set Class2_acc:0.7040998217468806
+unlabeled set Class3_acc:0.6753355704697986
+unlabeled set Class4_acc:0.9825986078886311
+unlabeled set Class5_acc:0.5426874536005939
+unlabeled set Class6_acc:0.43001119820828665
+unlabeled set Class7_acc:0.15284715284715283
+unlabeled set Class8_acc:0.9822525597269625
+Cycle 5/11 || Label set size 36: Test set acc 68.3
+Class0_acc:0.851
+Class1_acc:0.839
+Class2_acc:0.703
+Class3_acc:0.662
+Class4_acc:0.968
+Class5_acc:0.571
+Class6_acc:0.429
+Class7_acc:0.157
+Class8_acc:0.967
+Selection Distribution:  Counter({2: 2, 5: 2, 1: 2, 8: 2, 7: 1})
+Labeled Set Distribution:  Counter({8: 10, 4: 8, 1: 6, 2: 5, 3: 4, 0: 4, 5: 4, 6: 2, 7: 2})
+Cycle 6/11 || Label set size 45: unlabeled set acc 73.12
+unlabeled set Class0_acc:0.8319169027384324
+unlabeled set Class1_acc:0.8356940509915014
+unlabeled set Class2_acc:0.7959001782531194
+unlabeled set Class3_acc:0.613255033557047
+unlabeled set Class4_acc:0.9733178654292344
+unlabeled set Class5_acc:0.734966592427617
+unlabeled set Class6_acc:0.47032474804031354
+unlabeled set Class7_acc:0.24175824175824176
+unlabeled set Class8_acc:0.9767918088737202
+Cycle 6/11 || Label set size 45: Test set acc 71.52222222222223
+Class0_acc:0.83
+Class1_acc:0.82
+Class2_acc:0.791
+Class3_acc:0.624
+Class4_acc:0.966
+Class5_acc:0.749
+Class6_acc:0.458
+Class7_acc:0.233
+Class8_acc:0.966
+Selection Distribution:  Counter({5: 4, 6: 1, 1: 1, 7: 1, 4: 1, 8: 1})
+Labeled Set Distribution:  Counter({8: 11, 4: 9, 5: 8, 1: 7, 2: 5, 3: 4, 0: 4, 6: 3, 7: 3})
+Cycle 7/11 || Label set size 54: unlabeled set acc 79.29
+unlabeled set Class0_acc:0.8432483474976393
+unlabeled set Class1_acc:0.9442870632672332
+unlabeled set Class2_acc:0.7611408199643493
+unlabeled set Class3_acc:0.6476510067114094
+unlabeled set Class4_acc:0.9593967517401392
+unlabeled set Class5_acc:0.8418708240534521
+unlabeled set Class6_acc:0.6595744680851063
+unlabeled set Class7_acc:0.4305694305694306
+unlabeled set Class8_acc:0.9754266211604096
+Cycle 7/11 || Label set size 54: Test set acc 77.93333333333334
+Class0_acc:0.836
+Class1_acc:0.931
+Class2_acc:0.749
+Class3_acc:0.643
+Class4_acc:0.964
+Class5_acc:0.861
+Class6_acc:0.659
+Class7_acc:0.416
+Class8_acc:0.955
+Selection Distribution:  Counter({7: 2, 4: 2, 3: 1, 1: 1, 8: 1, 2: 1, 5: 1})
+Labeled Set Distribution:  Counter({8: 12, 4: 11, 5: 9, 1: 8, 2: 6, 3: 5, 7: 5, 0: 4, 6: 3})
+Cycle 8/11 || Label set size 63: unlabeled set acc 84.91
+unlabeled set Class0_acc:0.8489140698772427
+unlabeled set Class1_acc:0.9499527856468366
+unlabeled set Class2_acc:0.7655971479500892
+unlabeled set Class3_acc:0.9236577181208053
+unlabeled set Class4_acc:0.9698375870069605
+unlabeled set Class5_acc:0.8470675575352635
+unlabeled set Class6_acc:0.6595744680851063
+unlabeled set Class7_acc:0.6383616383616384
+unlabeled set Class8_acc:0.9699658703071672
+Cycle 8/11 || Label set size 63: Test set acc 83.74444444444444
+Class0_acc:0.852
+Class1_acc:0.939
+Class2_acc:0.761
+Class3_acc:0.919
+Class4_acc:0.97
+Class5_acc:0.852
+Class6_acc:0.641
+Class7_acc:0.653
+Class8_acc:0.95
+Selection Distribution:  Counter({3: 2, 5: 2, 8: 1, 7: 1, 0: 1, 2: 1, 6: 1})
+Labeled Set Distribution:  Counter({8: 13, 4: 11, 5: 11, 1: 8, 3: 7, 2: 7, 7: 6, 0: 5, 6: 4})
+Cycle 9/11 || Label set size 72: unlabeled set acc 86.53
+unlabeled set Class0_acc:0.9055712936732767
+unlabeled set Class1_acc:0.9461756373937678
+unlabeled set Class2_acc:0.749554367201426
+unlabeled set Class3_acc:0.9672818791946308
+unlabeled set Class4_acc:0.9756380510440835
+unlabeled set Class5_acc:0.8515219005196734
+unlabeled set Class6_acc:0.6326987681970885
+unlabeled set Class7_acc:0.7212787212787213
+unlabeled set Class8_acc:0.9713310580204778
+Cycle 9/11 || Label set size 72: Test set acc 85.58888888888889
+Class0_acc:0.905
+Class1_acc:0.938
+Class2_acc:0.735
+Class3_acc:0.964
+Class4_acc:0.97
+Class5_acc:0.866
+Class6_acc:0.639
+Class7_acc:0.725
+Class8_acc:0.961
+Selection Distribution:  Counter({3: 3, 1: 2, 8: 2, 7: 1, 5: 1})
+Labeled Set Distribution:  Counter({8: 15, 5: 12, 4: 11, 3: 10, 1: 10, 2: 7, 7: 7, 0: 5, 6: 4})
+Cycle 10/11 || Label set size 81: unlabeled set acc 86.39
+unlabeled set Class0_acc:0.9074598677998111
+unlabeled set Class1_acc:0.9631728045325779
+unlabeled set Class2_acc:0.749554367201426
+unlabeled set Class3_acc:0.9874161073825504
+unlabeled set Class4_acc:0.9698375870069605
+unlabeled set Class5_acc:0.8559762435040832
+unlabeled set Class6_acc:0.6170212765957447
+unlabeled set Class7_acc:0.6753246753246753
+unlabeled set Class8_acc:0.9720136518771331
+Cycle 10/11 || Label set size 81: Test set acc 85.61111111111111
+Class0_acc:0.912
+Class1_acc:0.966
+Class2_acc:0.75
+Class3_acc:0.985
+Class4_acc:0.961
+Class5_acc:0.866
+Class6_acc:0.615
+Class7_acc:0.69
+Class8_acc:0.96
+Selection Distribution:  Counter({5: 3, 0: 2, 6: 1, 2: 1, 3: 1, 4: 1})
+Labeled Set Distribution:  Counter({5: 15, 8: 15, 4: 12, 3: 11, 1: 10, 2: 8, 0: 7, 7: 7, 6: 5})
+Cycle 11/11 || Label set size 90: unlabeled set acc 87.9
+unlabeled set Class0_acc:0.9348441926345609
+unlabeled set Class1_acc:0.9631728045325779
+unlabeled set Class2_acc:0.8092691622103387
+unlabeled set Class3_acc:0.988255033557047
+unlabeled set Class4_acc:0.9709976798143851
+unlabeled set Class5_acc:0.902746844840386
+unlabeled set Class6_acc:0.6394176931690929
+unlabeled set Class7_acc:0.6453546453546454
+unlabeled set Class8_acc:0.9720136518771331
+Cycle 11/11 || Label set size 90: Test set acc 86.8
+Class0_acc:0.942
+Class1_acc:0.965
+Class2_acc:0.8
+Class3_acc:0.987
+Class4_acc:0.965
+Class5_acc:0.924
+Class6_acc:0.647
+Class7_acc:0.624
+Class8_acc:0.958

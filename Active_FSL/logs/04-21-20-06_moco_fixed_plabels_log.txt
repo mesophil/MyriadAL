@@ -1,0 +1,6 @@
+ selected_samples_indices: [3084, 3767, 5940, 6817, 3066, 184, 4542, 8667, 5823]
+selected_samples_true_labels:  [7, 8, 5, 2, 0, 6, 3, 4, 1]
+selected_samples_pseuodo_labels:  [7, 8, 5, 2, 0, 6, 3, 4, 1]
+selected_samples_distribution:  Counter({7: 1, 8: 1, 5: 1, 2: 1, 0: 1, 6: 1, 3: 1, 4: 1, 1: 1})
+The entire labeled set:  [3084, 3767, 5940, 6817, 3066, 184, 4542, 8667, 5823]
+The entire labeled set distribution:  Counter({7: 1, 8: 1, 5: 1, 2: 1, 0: 1, 6: 1, 3: 1, 4: 1, 1: 1})

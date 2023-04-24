@@ -1,0 +1,12 @@
+selected_samples_distribution:  Counter({7: 1, 8: 1, 5: 1, 2: 1, 0: 1, 6: 1, 3: 1, 4: 1, 1: 1})
+The entire labeled set distribution:  Counter({7: 1, 8: 1, 5: 1, 2: 1, 0: 1, 6: 1, 3: 1, 4: 1, 1: 1})
+Cycle 2/11 || Label set size 9: unlabeled set acc 58.11
+unlabeled set Class0_acc:0.9150141643059491
+unlabeled set Class1_acc:0.56657223796034
+unlabeled set Class2_acc:0.5623885918003565
+unlabeled set Class3_acc:0.7911073825503355
+unlabeled set Class4_acc:0.6716937354988399
+unlabeled set Class5_acc:0.31551596139569416
+unlabeled set Class6_acc:0.46248600223964165
+unlabeled set Class7_acc:0.5564435564435565
+unlabeled set Class8_acc:0.4737201365187713

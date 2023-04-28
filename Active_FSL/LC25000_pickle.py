@@ -30,19 +30,18 @@ class LC25000_PICKLE(VisionDataset):
         
 
     """
-
-###############
     base_folder = 'LC25000-batches-py'
     train_list = [
         'data_batch_1',
         'data_batch_2',
         'data_batch_3',
-        'data_batch_4'
+        'data_batch_4',
+        'data_batch_5',
     
     ]
 
     test_list = ['test_batch']
-##########################
+   
     def __init__(
             self,
             root: str,
@@ -86,7 +85,7 @@ class LC25000_PICKLE(VisionDataset):
                     self.filenames.extend(entry['filenames'])
 
         #######CIFAR10: reshape(-1,3,32,32) 
-        self.data = np.vstack(self.data).reshape(-1, 3,768, 768) # LC25000 image size is 768 × 768 pixels
+        self.data = np.vstack(self.data).reshape(-1, 3,224, 224) # LC25000 image size is resized to 224 × 224 pixels when pickled
         self.data = self.data.transpose((0, 2, 3, 1))  # convert to HWC
 
 
@@ -114,3 +113,5 @@ class LC25000_PICKLE(VisionDataset):
 
     def __len__(self) -> int:
         return len(self.data)
+
+

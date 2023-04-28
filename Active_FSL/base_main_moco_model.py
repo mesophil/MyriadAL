@@ -1,8 +1,3 @@
-'''Active Learning Procedure in PyTorch.
-
-Reference:
-[Yoo et al. 2019] Learning Loss for Active Learning (https://arxiv.org/abs/1905.03677)
-'''
 import torch
 import torchvision.models as models
 import os, torch, glob
@@ -144,7 +139,7 @@ def train(models, criterion, optimizers, schedulers, dataloaders, num_epochs):
             # Update the parameters
             optimizers.step()
             
-        schedulers.step() #
+        schedulers.step()
         
         ####To obeserve training loss####
         #print("Epoch {} average loss: {:.4f}".format(epoch, running_loss / len(dataloaders['train'])))
@@ -198,7 +193,7 @@ def test(models, dataloaders, mode='val'):
 
 ###### Query strategies ######
 
-def get_uncertainty_margin(models, dataloaders):
+def get_uncertainty_margin(models, unlabeled_loader):
     models.eval()
     uncertainty_score=[]    
     
@@ -237,7 +232,7 @@ def get_uncertainty_entropy(models, unlabeled_loader):
     return entropylist
 
 
-def get_uncertainty_marginentropy(models, dataloaders):
+def get_uncertainty_marginentropy(models, unlabeled_loader):
     models.eval()
     uncertainty_list = []
     
@@ -377,123 +372,127 @@ if __name__ == '__main__':
             y.append(acc_all)
             num_samples.append(len(labeled_set))
         
-        ##################################################################
-        ###### Create unlabeled dataloader for the unlabeled unlabeled_set###############
-        unlabeled_loader = DataLoader(data_unlabeled, 
-                                        batch_size=BATCH, # In config.py, BATCH=128
-                                        sampler=SubsetSequentialSampler(unlabeled_set), 
-                                        pin_memory=True)
-    
-        
-        #########################################################################################
-        
-        uncertainty = get_uncertainty_marginentropy(models, unlabeled_loader)
-        
-        # uncertainties in descending order
-        arg = reversed(np.argsort(uncertainty))
-        
-        list0=[]
-        selected_samples=[]
-        
-        ######## randomly select one pseudo complete set each cycle ########
-        '''
-        for item in random_querylist:
-            pseudo_label=pseudo_labels[item]
-            if list0.count(pseudo_label)<1:
-                list0.append(pseudo_label)
-                selected_samples.append(item)
-            if len(list0)>(NUM_CLASSES-1):
-                break
-        '''
-        
-        ####### select pseudo complete sets using the arglist #######
-        
-        verification = [x in pseudo_labels for x in range(NUM_CLASSES)]
-        
-        print("At least one pseudo label: ", verification)
-        
-        for item in arg:
-            pseudo_label = pseudo_labels[item]
+        if cycle < CYCLES-1:
+            ##################################################################
+            ###### Create unlabeled dataloader for the unlabeled unlabeled_set###############
+            unlabeled_loader = DataLoader(data_unlabeled, 
+                                            batch_size=BATCH, # In config.py, BATCH=128
+                                            sampler=SubsetSequentialSampler(unlabeled_set), 
+                                            pin_memory=True)
 
-            if pseudo_label not in list0:
-                list0.append(pseudo_label)
-                selected_samples.append(item)
-            if len(list0) >= NUM_CLASSES:
-                break
-        
-        ################################################################################################
-        #Just random select K=NUM_CLASSES samples from the unlabeled dataset each AL cycle.
-        #without any help of pseudo labels or AL strategies
-        #selected_samples = random_querylist[:NUM_CLASSES]
 
-        ##################################################################################################
-        
-         # ##### randomly select one true complete set each cycle  #########
-        # list0=[]  # list0 is used to save the true labels of samples selected this AL cycle.
-        # selected_samples=[] #selected_samples is used to save the index of samples selected this AL cycle.
-        # for item in random_querylist:
-        #     true_label=data_unlabeled.targets[item] # Get the true label of this sample
-        #     if list0.count(true_label)<1:  # count how many element=true label in list0
-        #         list0.append(true_label)           # if less than 1, select this sample, save its label in list0. 
-        #         selected_samples.append(item) # select this sample,save its index in list:selected_samples
-        #     if len(list0)>(NUM_CLASSES-1): # sample a complete 9-way one-shot support set
-        #     #if len(list0)>(NUM_CLASSES-5): # sample a 5-way one-shot support set
-        #         break
-        ##################################################################################################
-        
-        
+            #########################################################################################
+            
+            #uncertainty = get_uncertainty_margin(models, unlabeled_loader)
+            #uncertainty = get_uncertainty_entropy(models, unlabeled_loader)
+            uncertainty = get_uncertainty_marginentropy(models, unlabeled_loader)
 
-        
-                
-        ##### Print statistics #####
-        selected_samples_labels=[]
-        for i in selected_samples:
-            selected_samples_labels.append(data_train.targets[i])
-        selected_samples_distribution=Counter(selected_samples_labels)
-        selected_p_labels=[]
-        for sample_index in selected_samples:
-            selected_p_labels.append(pseudo_labels[sample_index])
-        integer_selected_p_labels = [x.item() for x in selected_p_labels]
+            # uncertainties in descending order
+            arg = reversed(np.argsort(uncertainty))
 
-        #print(" selected_samples_indices:",selected_samples,file = log)
-        #print("selected_samples_true_labels: ",selected_samples_labels,file = log)
-        
-        #print("selected_samples_pseudo_labels: ",integer_selected_p_labels,file = log)
-        print("Selection Distribution: ",selected_samples_distribution,file = log)
+            list0=[]
+            selected_samples=[]
 
-        #print("selected_samples_indices:",selected_samples)
-        #print("selected_samples_true_labels: ",selected_samples_labels)
-        #print("selected_samples_pseuodo_labels: ",integer_selected_p_labels)
-        print("Selection Distribution: ",selected_samples_distribution)            
-       
-        
-    
-        ########## Update the labeled dataset and the unlabeled dataset, respectively #####
-        
-        labeled_set += selected_samples 
-        labeled_set_labels=[]
-        for i in labeled_set:
-            labeled_set_labels.append(data_train.targets[i])
-        labeled_set_distribution=Counter(labeled_set_labels)
-        #integer_labeled_set = [x.item() for x in labeled_set]
-        #print("The entire labeled set: ",labeled_set,file = log)
-        #print("The entire labeled set: ",labeled_set)
-        print("Labeled Set Distribution: ",labeled_set_distribution,file = log)
-        print("Labeled Set Distribution: ",labeled_set_distribution)
-        
-         ###### Update the unlabeled set #######
-        unlabeled_set = [i for i in indices if i not in labeled_set]
-        random_querylist=[i for i in random_querylist_0 if i not in labeled_set]
-        #print(random_querylist[0:50])
-        ###### Update the train_loader #######
-        dataloaders['train'] = DataLoader(data_train,
-                                        batch_size=NUM_CLASSES, 
-                                       sampler=SubsetSequentialSampler(labeled_set), 
-                                        pin_memory=True)
+            ######## randomly select one pseudo complete set each cycle ########
+            '''
+            for item in random_querylist:
+                pseudo_label=pseudo_labels[item]
+                if list0.count(pseudo_label)<1:
+                    list0.append(pseudo_label)
+                    selected_samples.append(item)
+                if len(list0)>(NUM_CLASSES-1):
+                    break
+            '''
+
+            ####### select pseudo complete sets using the arglist #######
+            '''
+            verification = [x in pseudo_labels for x in range(NUM_CLASSES)]
+
+            print("At least one pseudo label: ", verification)
+
+            for item in arg:
+                pseudo_label = pseudo_labels[item]
+
+                if pseudo_label not in list0:
+                    list0.append(pseudo_label)
+                    selected_samples.append(item)
+                if len(list0) >= NUM_CLASSES:
+                    break
+            '''
+
+            ####### evenly selected pseudo complete sets #######
+
+            
+            splits = np.array_split(arg, ADDENDUM)
+
+            i = 0
+
+            while (len(list0) < NUM_CLASSES and i < 3):
+                for splitnum, phase in enumerate(splits):
+                    for item in phase:             # arg is the query list                         
+                        p_label = pseudo_labels[item]               # using pseudo labels
+                        if p_label not in list0:
+                            selected_samples.append(item)
+                            list0.append(p_label)
+                            break
+                i += 1
+            
+
+            ####### even selection #######
+            '''
+            step = len(unlabeled_set)//NUM_CLASSES + 1
+            selected_samples = list(torch.tensor(unlabeled_set)[arg][::step].numpy())
+            '''
+            
+            ##### Print statistics #####
+            selected_samples_labels=[]
+            for i in selected_samples:
+                selected_samples_labels.append(data_train.targets[i])
+            selected_samples_distribution=Counter(selected_samples_labels)
+            selected_p_labels=[]
+            for sample_index in selected_samples:
+                selected_p_labels.append(pseudo_labels[sample_index])
+            integer_selected_p_labels = [x.item() for x in selected_p_labels]
+
+            #print(" selected_samples_indices:",selected_samples,file = log)
+            #print("selected_samples_true_labels: ",selected_samples_labels,file = log)
+
+            #print("selected_samples_pseudo_labels: ",integer_selected_p_labels,file = log)
+            print("Selection Distribution: ",selected_samples_distribution,file = log)
+
+            #print("selected_samples_indices:",selected_samples)
+            #print("selected_samples_true_labels: ",selected_samples_labels)
+            #print("selected_samples_pseuodo_labels: ",integer_selected_p_labels)
+            print("Selection Distribution: ",selected_samples_distribution)            
+
+
+
+            ########## Update the labeled dataset and the unlabeled dataset, respectively #####
+
+            labeled_set += selected_samples 
+            labeled_set_labels=[]
+            for i in labeled_set:
+                labeled_set_labels.append(data_train.targets[i])
+            labeled_set_distribution=Counter(labeled_set_labels)
+            #integer_labeled_set = [x.item() for x in labeled_set]
+            #print("The entire labeled set: ",labeled_set,file = log)
+            #print("The entire labeled set: ",labeled_set)
+            print("Labeled Set Distribution: ",labeled_set_distribution,file = log)
+            print("Labeled Set Distribution: ",labeled_set_distribution)
+
+             ###### Update the unlabeled set #######
+            unlabeled_set = [i for i in indices if i not in labeled_set]
+            random_querylist=[i for i in random_querylist_0 if i not in labeled_set]
+            #print(random_querylist[0:50])
+            ###### Update the train_loader #######
+            dataloaders['train'] = DataLoader(data_train,
+                                            batch_size=NUM_CLASSES, 
+                                           sampler=SubsetSequentialSampler(labeled_set), 
+                                            pin_memory=True)
         
     
     log.close()
     
     num_samples_total = num_samples[-1]
     
-    np.savetxt('accuracies/MoCo/' + time_now + '_seed' + str(r_seed) + 'pseudorandom.csv', np.c_[num_samples, y], fmt=['%d', '%.3f'], header='Labelled Samples, Accuracy', delimiter=',')
+    np.savetxt('accuracies/MoCo/' + time_now + '_seed' + str(r_seed) + 'pseudoeven_lowlr.csv', np.c_[num_samples, y], fmt=['%d', '%.3f'], header='Labelled Samples, Accuracy', delimiter=',')

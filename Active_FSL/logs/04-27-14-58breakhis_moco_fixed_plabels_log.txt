@@ -1,0 +1,2 @@
+Selection distribution:  Counter({1: 4, 2: 3, 5: 1})
+Labeled set distribution:  Counter({1: 4, 2: 3, 5: 1})

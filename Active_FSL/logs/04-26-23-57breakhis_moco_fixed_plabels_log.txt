@@ -1,0 +1,22 @@
+Selection distribution:  Counter({1: 4, 5: 1, 4: 1, 0: 1, 6: 1})
+Labeled set distribution:  Counter({1: 4, 5: 1, 4: 1, 0: 1, 6: 1})
+Cycle 2/11 || Label set size 8: unlabeled set acc 20.551677166695047
+unlabeled set Class0_acc:0.3993993993993994
+unlabeled set Class1_acc:0.3133693972179289
+unlabeled set Class2_acc:0.0
+unlabeled set Class3_acc:0.0
+unlabeled set Class4_acc:0.11447811447811448
+unlabeled set Class5_acc:0.24175824175824176
+unlabeled set Class6_acc:0.31563421828908556
+unlabeled set Class7_acc:0.0
+Cycle 2/11 || Label set size 8: Test set acc 17.56756756756757
+Class0_acc:0.40540540540540543
+Class1_acc:0.27927927927927926
+Class2_acc:0.0
+Class3_acc:0.0
+Class4_acc:0.13513513513513514
+Class5_acc:0.27927927927927926
+Class6_acc:0.3063063063063063
+Class7_acc:0.0
+Selection distribution:  Counter({4: 2, 2: 2, 1: 1})
+Labeled set distribution:  Counter({1: 5, 4: 3, 2: 2, 5: 1, 0: 1, 6: 1})

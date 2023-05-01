@@ -88,7 +88,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 # ])
 moco_transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.RandomResizedCrop(224, scale=(0.2, 1.)),  ##和MOCO 训练时一致的resize和normalization
+            transforms.RandomCrop(224),  ##和MOCO 训练时一致的resize和normalization
             # transforms.Normalize(
             # mean=[0.7401, 0.5320, 0.7051], 
             # std=[0.1281, 0.1608, 0.1192]) #NCT DATASET
@@ -103,9 +103,9 @@ moco_transform = transforms.Compose([
 # data_train = NCT_PICKLE("/home/jingyi/ACFSL/nct_pickle", train=True,  transform=moco_transform)
 
 #################################################
-data_test  = LC25000_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/LC25000_pickle", train=False,  transform=moco_transform)
-data_unlabeled   = LC25000_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/LC25000_pickle", train=True,  transform=moco_transform)
-data_train = LC25000_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/LC25000_pickle", train=True,  transform=moco_transform)
+data_test  = LC25000_PICKLE("/home/nico/GitHub/Active-FSL/Active_FSL/LC25000_pickle", train=False,  transform=moco_transform)
+data_unlabeled   = LC25000_PICKLE("/home/nico/GitHub/Active-FSL/Active_FSL/LC25000_pickle", train=True,  transform=moco_transform)
+data_train = LC25000_PICKLE("/home/nico/GitHub/Active-FSL/Active_FSL/LC25000_pickle", train=True,  transform=moco_transform)
 
 ############ Load breakhis dataset ###########
 
@@ -116,7 +116,7 @@ data_train = LC25000_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Act
 
 
 ###########load first-generation pseudo labels###########
-pseudo_labels=torch.load("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Generate_Pseudo_Labels/lc25000_moco_cp0269_pseudo_label.pth") # first-generation pseudo labels by moco+kmeans
+pseudo_labels=torch.load("/home/nico/GitHub/Active-FSL/Generate_Pseudo_Labels/lc25000_moco_cp0269_pseudo_label.pth") # first-generation pseudo labels by moco+kmeans
 pseudo_labels=pseudo_labels.cpu().detach().numpy()
    
 ###### Training #######
@@ -261,7 +261,7 @@ if __name__ == '__main__':
     time_now = datetime.now().strftime("%m-%d-%H-%M")   
     
     ##### Save all printed content to log.txt file. #####
-    dir_name="/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/logs/"
+    dir_name="/home/nico/GitHub/Active-FSL/Active_FSL/logs/"
     if not os.path.isdir(dir_name):
         os.makedirs(dir_name)
     log = open(dir_name+time_now+"lc25000_moco_plabels_log.txt", mode='a',encoding='utf-8')
@@ -297,7 +297,7 @@ if __name__ == '__main__':
     ####### Load Pretrained MOCO Model(Encoder)######################
 
     #"/home/jingyi/moco_pretrain_lc25000/checkpoints/lc25000_checkpoint_0269_0.001_64_65536_224.pth.tar"
-    checkpoint = torch.load("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Pretrain_FSL_Model/lc25000_checkpoint_0269_0.001_64_65536_224.pth.tar",map_location="cpu")
+    checkpoint = torch.load("/home/nico/GitHub/Active-FSL/Pretrain_FSL_Model/lc25000_checkpoint_0269_0.001_64_65536_224.pth.tar",map_location="cpu")
     
     arch = checkpoint['arch']
     print("=> creating model '{}'".format(arch))
@@ -345,7 +345,7 @@ if __name__ == '__main__':
             train(models, criterion, optimizers, schedulers, dataloaders, EPOCH)
             #Update pseudo labels here
             acc_all_unlabeled,acc_unlabeled,true_labels_unlabeled,pseudo_labels = test(models, dataloaders, mode='all')
-            torch.save(pseudo_labels,"/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/lc25000_p_labels/pseudo_labels_cycle{}.pth".format(cycle+1))
+            torch.save(pseudo_labels,"/home/nico/GitHub/Active-FSL/Active_FSL/lc25000_p_labels/pseudo_labels_cycle{}.pth".format(cycle+1))
             print('Cycle {}/{} || Label set size {}: unlabeled set acc {}'.format(cycle+1, CYCLES, len(labeled_set), acc_all_unlabeled),file = log)
             #print('Cycle {}/{} || Label set size {}: unlabeled set acc {}'.format(cycle+1, CYCLES, len(labeled_set), acc_all_unlabeled))
             for i in range(NUM_CLASSES):

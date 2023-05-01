@@ -71,7 +71,7 @@ torch.backends.cudnn.deterministic = True # It affects all the normally-nondeter
 torch.backends.cudnn.benchmark = False #It causes cuDNN to deterministically select an algorithm, possibly at the cost of reduced performance.
 
 # we can assign the work to the GPU card '1' or '0' or '0,1'. When '0,1', it uses GPU 0 first, if not enough, then use GPU 0 and 1.
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0, 1'
 ##############################
 
 #Define the data augamentation(transformations) for data loader.
@@ -89,7 +89,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 # ])
 moco_transform_breakhis = transforms.Compose([
             transforms.ToTensor(),
-            transforms.RandomResizedCrop(460, scale=(0.2, 1.)),  ##和MOCO 训练时一致的resize和normalization
+            transforms.RandomCrop(460),  ##和MOCO 训练时一致的resize和normalization
             # transforms.Normalize(
             # mean=[0.7401, 0.5320, 0.7051], 
             # std=[0.1281, 0.1608, 0.1192]) #NCT DATASET
@@ -103,12 +103,12 @@ moco_transform_breakhis = transforms.Compose([
 
 ############ Load breakhis dataset ###########
 
-data_test  = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=False,  transform=moco_transform_breakhis)
-data_unlabeled   = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=moco_transform_breakhis)
-data_train = BREAKHIS_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=moco_transform_breakhis)
+data_test  = BREAKHIS_PICKLE("/home/nico/GitHub/Active-FSL/Active_FSL/breakhis_pickle", train=False,  transform=moco_transform_breakhis)
+data_unlabeled   = BREAKHIS_PICKLE("/home/nico/GitHub/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=moco_transform_breakhis)
+data_train = BREAKHIS_PICKLE("/home/nico/GitHub/Active-FSL/Active_FSL/breakhis_pickle", train=True,  transform=moco_transform_breakhis)
 
 ###########load first-generation pseudo labels###########
-pseudo_labels=torch.load("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Generate_Pseudo_Labels/breakhis_pseudo_labels_checkpoint0017.pth") # breakhis pseudo labels by moco+kmeans
+pseudo_labels=torch.load("/home/nico/GitHub/Active-FSL/Generate_Pseudo_Labels/breakhis_pseudo_labels_checkpoint0017.pth") # breakhis pseudo labels by moco+kmeans
 
 pseudo_labels=pseudo_labels.cpu().detach().numpy()
 
@@ -151,14 +151,14 @@ def train(models, criterion, optimizers, schedulers,dataloaders,num_epochs):
 		####To obeserve training loss####
         #print("Epoch {} average loss: {:.4f}".format(epoch, running_loss / len(dataloaders['train'])))
         
-        yplot.append(running_loss/len(dataloaders['train']))
+        #yplot.append(running_loss/len(dataloaders['train']))
         
         
     
     print('>> Finished.')
-    plt.figure()
-    plt.scatter(range(len(yplot)), yplot)
-    plt.savefig('img/loss.png')
+    #plt.figure()
+    #plt.scatter(range(len(yplot)), yplot)
+    #plt.savefig('img/loss.png')
 	
 ####### Test #########
 def test(models, dataloaders, mode='val'): 
@@ -270,7 +270,7 @@ if __name__ == '__main__':
     time_now = datetime.now().strftime("%m-%d-%H-%M")
 
 	##### Save all printed content to log.txt file. #####
-    dir_name="/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/logs/"
+    dir_name="/home/nico/GitHub/Active-FSL/Active_FSL/logs/"
     if not os.path.isdir(dir_name):
         os.makedirs(dir_name)
     log = open(dir_name+time_now+"breakhis_moco_fixed_plabels_log.txt", mode='a',encoding='utf-8')
@@ -308,7 +308,7 @@ if __name__ == '__main__':
     ####### Load Pretrained MOCO Model(Encoder)######################
 
     
-    checkpoint = torch.load('/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Pretrain_FSL_Model/BEST_checkpoint_0017_0.0005_65536_460.pth.tar',map_location="cpu")
+    checkpoint = torch.load('/home/nico/GitHub/Active-FSL/Pretrain_FSL_Model/BEST_checkpoint_0017_0.0005_65536_460.pth.tar',map_location="cpu")
     arch = checkpoint['arch']
     print("=> creating model '{}'".format(arch))
     model = models.__dict__[arch]()
@@ -362,7 +362,7 @@ if __name__ == '__main__':
             #Update pseudo labels here
             acc_all_unlabeled,acc_unlabeled,true_labels_unlabeled,pseudo_labels = test(models, dataloaders, mode='all')
 			
-            torch.save(pseudo_labels,"/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/breakhis_p_labels/pseudo_labels_cycle{}.pth".format(cycle+1))
+            torch.save(pseudo_labels,"/home/nico/GitHub/Active-FSL/Active_FSL/breakhis_p_labels/pseudo_labels_cycle{}.pth".format(cycle+1))
             
             print('Cycle {}/{} || Label set size {}: unlabeled set acc {}'.format(cycle+1, CYCLES, len(labeled_set), acc_all_unlabeled),file = log)
             #print('Cycle {}/{} || Label set size {}: unlabeled set acc {}'.format(cycle+1, CYCLES, len(labeled_set), acc_all_unlabeled))
@@ -434,7 +434,7 @@ if __name__ == '__main__':
 
             ####### evenly selected pseudo complete sets #######
 
-            '''
+            
             splits = np.array_split(arg, ADDENDUM)
 
             i = 0
@@ -448,14 +448,14 @@ if __name__ == '__main__':
                             list0.append(p_label)
                             break
                 i += 1
-            '''
+            
 			
 
             ####### even selection #######
-            
+            '''
             step = len(unlabeled_set)//ADDENDUM + 1
             selected_samples = list(torch.tensor(unlabeled_set)[arg][::step].numpy())
-            
+            '''
             			
 			
 			######### END SELECTION STUFF #######
@@ -512,4 +512,4 @@ if __name__ == '__main__':
 	
     num_samples_total = num_samples[-1]
     
-    np.savetxt('accuracies/MoCoBreakhis/' + time_now + '_seed' + str(r_seed) + 'pseudorandom.csv', np.c_[num_samples, y], fmt=['%d', '%.3f'], header='Labelled Samples, Accuracy', delimiter=',')
+    np.savetxt('accuracies/MoCoBreakhis/' + time_now + '_seed' + str(r_seed) + 'pseudoevenlowerepochs.csv', np.c_[num_samples, y], fmt=['%d', '%.3f'], header='Labelled Samples, Accuracy', delimiter=',')

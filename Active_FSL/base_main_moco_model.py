@@ -79,7 +79,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 ##############################
 moco_transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.RandomResizedCrop(224, scale=(0.2, 1.)),  ##和MOCO 训练时一致的resize和normalization
+            transforms.RandomCrop(224),  ##和MOCO 训练时一致的resize和normalization
             # transforms.Normalize(
             # mean=[0.7401, 0.5320, 0.7051], 
             # std=[0.1281, 0.1608, 0.1192]) #NCT DATASET
@@ -90,9 +90,9 @@ moco_transform = transforms.Compose([
 ########## Data loading #############
 
 ############## Load pickled NCT ##############
-data_test  = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=False,  transform=moco_transform)
-data_unlabeled   = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=moco_transform)
-data_train = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=moco_transform)
+data_test  = NCT_PICKLE("/home/nico/GitHub/Active-FSL/Active-FSL/Active_FSL/nct_pickle/", train=False,  transform=moco_transform)
+data_unlabeled   = NCT_PICKLE("/home/nico/GitHub/Active-FSL/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=moco_transform)
+data_train = NCT_PICKLE("/home/nico/GitHub/Active-FSL/Active-FSL/Active_FSL/nct_pickle/", train=True,  transform=moco_transform)
 
 
 ############ Load breakhis dataset ###########
@@ -104,7 +104,7 @@ data_train = NCT_PICKLE("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-
 
 
 ###########load first-generation pseudo labels###########
-pseudo_labels=torch.load("/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Generate_Pseudo_Labels/pseudo_labels_cycle10.pth")
+pseudo_labels=torch.load("/home/nico/GitHub/Active-FSL/Active-FSL/Generate_Pseudo_Labels/pseudo_labels_cycle10.pth")
 pseudo_labels=pseudo_labels.cpu().detach().numpy()
    
 ###### Training #######
@@ -262,7 +262,7 @@ if __name__ == '__main__':
     time_now = datetime.now().strftime("%m-%d-%H-%M")
     
     ##### Save all printed content to log.txt file. #####
-    dir_name="/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/logs/"
+    dir_name="/home/nico/GitHub/Active-FSL/Active-FSL/Active_FSL/logs/"
     if not os.path.isdir(dir_name):
         os.makedirs(dir_name)
     log = open(dir_name + time_now +"_moco_fixed_plabels_log.txt", mode='a',encoding='utf-8')
@@ -299,7 +299,7 @@ if __name__ == '__main__':
     
     ####### Load Pretrained MOCO Model(Encoder)######################
     
-    checkpoint = torch.load('/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Pretrain_FSL_Model/best_pretrain_moco_encoder_k=65536_checkpoint_0199.pth.tar',map_location="cpu")
+    checkpoint = torch.load('/home/nico/GitHub/Active-FSL/Active-FSL/Pretrain_FSL_Model/best_pretrain_moco_encoder_k=65536_checkpoint_0199.pth.tar',map_location="cpu")
     arch = checkpoint['arch']
     print("=> creating model '{}'".format(arch))
     model = models.__dict__[arch]()
@@ -350,7 +350,7 @@ if __name__ == '__main__':
             #Update pseudo labels here
             acc_all_unlabeled, acc_unlabeled, true_labels_unlabeled, pseudo_labels = test(models, dataloaders, mode='all')
             
-            torch.save(pseudo_labels,"/home/jupyter-nschiavo@ualberta.-a5539/realcode/Active-FSL/Active_FSL/p_labels/pseudo_labels_cycle{}.pth".format(cycle+1))
+            torch.save(pseudo_labels,"/home/nico/GitHub/Active-FSL/Active-FSL/Active_FSL/p_labels/pseudo_labels_cycle{}.pth".format(cycle+1))
             print('Cycle {}/{} || Label set size {}: unlabeled set acc {}'.format(cycle+1, CYCLES, len(labeled_set), acc_all_unlabeled),file = log)
             #print('Cycle %d/%d || Label set size %d: Test acc %.3f%%' % (cycle, CYCLES-1, len(labeled_set), acc_all_unlabeled))
             
